@@ -18,15 +18,19 @@ export interface FurnitureItem {
   id: string;
   type: FurnitureType;
   position: Vector3;
-  rotation: Vector3; // in degrees usually, or radians
+  rotation: Vector3;
+  scale?: Vector3;
   dimensions?: Vector3;
+  boundingBox?: { w: number; d: number; h: number };
   color?: string;
   visible?: boolean;
 }
 
 export interface RoomConnection {
-  targetRoomId: string;
+  targetRoomId?: string;
+  toRoomId?: string;
   via: ConnectionVia;
+  doorId?: string;
   description?: string;
 }
 
@@ -36,6 +40,7 @@ export interface Wall {
   endPoint: Vector2;
   thickness: number;
   height: number;
+  material?: string;
   isExterior: boolean;
   visible?: boolean;
 }
@@ -43,20 +48,24 @@ export interface Wall {
 export interface Door {
   id: string;
   wallId: string;
-  position: Vector2; // position along the wall or global
+  position: number | Vector2; // scalar 0..1 or global Vector2
+  t?: number;
   width: number;
   height: number;
   swing: DoorSwing;
+  isEntrance?: boolean;
   visible?: boolean;
 }
 
 export interface Window {
   id: string;
   wallId: string;
-  position: Vector2; // position along the wall or global
+  position: number | Vector2; // scalar 0..1 or global Vector2
+  t?: number;
   width: number;
   height: number;
   sillHeight: number;
+  sill?: number;
   visible?: boolean;
 }
 
@@ -64,13 +73,14 @@ export interface Room {
   id: string;
   name: string;
   type: RoomType;
-  wallIds: string[]; // references to walls defining the room
-  polygon: Vector2[]; // perimeter points
+  wallIds: string[];
+  polygon: Vector2[];
   floorMaterial?: string;
   ceilingMaterial?: string;
   furniture: FurnitureItem[];
   connections: RoomConnection[];
-  area?: number;
+  area?: number;       // Canonical area in m²
+  areaSqFt?: number;   // Display derived area in sq ft
   visible?: boolean;
 }
 
@@ -81,6 +91,7 @@ export interface Staircase {
   position: Vector2;
   width: number;
   length: number;
+  footprint?: Vector2[];
   type: 'straight' | 'l-shaped' | 'u-shaped' | 'spiral';
   visible?: boolean;
 }
@@ -97,7 +108,9 @@ export interface Roof {
 export interface Floor {
   index: number;
   name: string;
-  height: number; // height of the floor from ground
+  height: number;              // height of the floor base from ground
+  elevation?: number;          // elevation metres from ground
+  floorToFloorHeight?: number; // vertical floor-to-floor height
   rooms: Room[];
   walls: Wall[];
   doors: Door[];
@@ -110,6 +123,8 @@ export interface Entrance {
   id: string;
   floorIndex: number;
   position: Vector2;
+  wallId?: string;
+  doorId?: string;
   type: 'main' | 'back' | 'service';
 }
 
@@ -121,11 +136,14 @@ export interface BuildingMetadata {
   createdVia: CreatedVia;
   createdAt: string;
   updatedAt: string;
+  style?: string;
   tags?: string[];
   location?: string;
+  createdBy?: string;
 }
 
 export interface Building {
+  schemaVersion?: string;
   id: string;
   metadata: BuildingMetadata;
   floors: Floor[];

@@ -65,9 +65,12 @@ def check_collisions(building: Building) -> list[ValidationError]:
             # Compute door position in 2D
             x1, y1 = wall.start[0], wall.start[1]
             x2, y2 = wall.end[0], wall.end[1]
-            t = door.position
-            dx = x1 + t * (x2 - x1)
-            dy = y1 + t * (y2 - y1)
+            if isinstance(door.position, list) or isinstance(door.position, tuple):
+                dx, dy = door.position[0], door.position[1]
+            else:
+                t = float(door.position)
+                dx = x1 + t * (x2 - x1)
+                dy = y1 + t * (y2 - y1)
 
             door_clearance_box = get_aabb(dx, dy, door.width, door.width)
 

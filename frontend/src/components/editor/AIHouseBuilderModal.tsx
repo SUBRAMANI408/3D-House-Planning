@@ -40,9 +40,10 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
           id: `r-gf-liv-${timestamp}`,
           name: 'Living Room',
           type: 'living' as RoomType,
-          wallIds: [],
+          wallIds: [`w0-s1-${timestamp}`, `w0-i1-${timestamp}`, `w0-i2-${timestamp}`, `w0-w1-${timestamp}`],
           polygon: [[0, 0], [6, 0], [6, 5], [0, 5]],
-          area: 322.9,
+          area: 30,
+          areaSqFt: 322.9,
           furniture: [
             { id: `f-gf-sofa-${timestamp}`, type: 'sofa_l', position: [3, 0, 2.5], rotation: [0, 0, 0] },
             { id: `f-gf-tv-${timestamp}`, type: 'tv_unit', position: [5.5, 0, 2.5], rotation: [0, 270, 0] },
@@ -54,9 +55,10 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
           id: `r-gf-kit-${timestamp}`,
           name: 'Kitchen',
           type: 'kitchen' as RoomType,
-          wallIds: [],
+          wallIds: [`w0-s1-${timestamp}`, `w0-i4-${timestamp}`, `w0-i2-${timestamp}`, `w0-i1-${timestamp}`],
           polygon: [[6, 0], [11, 0], [11, 5], [6, 5]],
-          area: 269.1,
+          area: 25,
+          areaSqFt: 269.1,
           furniture: [
             { id: `f-gf-counter-${timestamp}`, type: 'kitchen_counter', position: [9, 0, 4.4], rotation: [0, 0, 0] },
             { id: `f-gf-fridge-${timestamp}`, type: 'refrigerator', position: [10.2, 0, 1.0], rotation: [0, 270, 0] }
@@ -67,9 +69,10 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
           id: `r-gf-din-${timestamp}`,
           name: 'Dining Room',
           type: 'dining' as RoomType,
-          wallIds: [],
+          wallIds: [`w0-i2-${timestamp}`, `w0-i1-${timestamp}`, `w0-n2-${timestamp}`, `w0-w1-${timestamp}`],
           polygon: [[0, 5], [6, 5], [6, 9], [0, 9]],
-          area: 258.3,
+          area: 24,
+          areaSqFt: 258.3,
           furniture: [
             { id: `f-gf-din-tbl-${timestamp}`, type: 'dining_table', position: [3, 0, 7], rotation: [0, 0, 0] }
           ],
@@ -79,9 +82,10 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
           id: `r-gf-bath-${timestamp}`,
           name: 'Guest Bathroom',
           type: 'bathroom' as RoomType,
-          wallIds: [],
+          wallIds: [`w0-i2-${timestamp}`, `w0-e2-${timestamp}`, `w0-i3-${timestamp}`, `w0-i1-${timestamp}`],
           polygon: [[6, 5], [9, 5], [9, 7], [6, 7]],
-          area: 64.6,
+          area: 6,
+          areaSqFt: 64.6,
           furniture: [
             { id: `f-gf-toilet-${timestamp}`, type: 'toilet', position: [7, 0, 6], rotation: [0, 0, 0] },
             { id: `f-gf-sink-${timestamp}`, type: 'sink', position: [8.2, 0, 6], rotation: [0, 0, 0] }
@@ -92,9 +96,10 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
           id: `r-gf-foyer-${timestamp}`,
           name: 'Entrance Foyer',
           type: 'corridor' as RoomType,
-          wallIds: [],
+          wallIds: [`w0-i3-${timestamp}`, `w0-e2-${timestamp}`, `w0-n1-${timestamp}`, `w0-i1-${timestamp}`],
           polygon: [[6, 7], [9, 7], [9, 9], [6, 9]],
-          area: 64.6,
+          area: 6,
+          areaSqFt: 64.6,
           furniture: [],
           connections: []
         }
@@ -105,9 +110,10 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
           id: `r-gf-gar-${timestamp}`,
           name: 'Garage',
           type: 'garage' as RoomType,
-          wallIds: [],
+          wallIds: [`w0-s1-${timestamp}`, `w0-e1-${timestamp}`, `w0-n1-${timestamp}`, `w0-i4-${timestamp}`],
           polygon: [[11, 0], [15, 0], [15, 7], [11, 7]],
-          area: 301.3,
+          area: 28,
+          areaSqFt: 301.3,
           furniture: [],
           connections: []
         });

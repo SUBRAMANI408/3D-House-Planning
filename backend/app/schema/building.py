@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 # ────────────────────────────────────────────────
@@ -38,21 +38,17 @@ class RoomType(str, Enum):
     balcony = "balcony"
     storeroom = "storeroom"
     laundry = "laundry"
-    # Commercial
     shop_unit = "shop_unit"
     reception = "reception"
     office = "office"
     meeting_room = "meeting_room"
-    # Hospital
     ward = "ward"
     icu = "icu"
     emergency = "emergency"
     nurse_station = "nurse_station"
     operating_room = "operating_room"
-    # Police
     lockup = "lockup"
     armory = "armory"
-    # Mall
     food_court = "food_court"
     anchor_store = "anchor_store"
 
@@ -117,19 +113,19 @@ class Point2D(BaseModel):
 
 
 class BoundingBox(BaseModel):
-    w: float  # width  (x)
-    d: float  # depth  (y)
-    h: float  # height (z)
+    w: float = 1.0
+    d: float = 1.0
+    h: float = 1.0
 
 
 class FurnitureItem(BaseModel):
-    furniture_id: str = Field(..., alias="furnitureId")
-    type: FurnitureType
+    furniture_id: str = Field(..., validation_alias=AliasChoices("furnitureId", "id"), serialization_alias="id")
+    type: str
     asset_ref: Optional[str] = Field(None, alias="assetRef")
     position: list[float] = Field(..., min_length=3, max_length=3)
     rotation: list[float] = Field([0.0, 0.0, 0.0], min_length=3, max_length=3)
     scale: list[float] = Field([1.0, 1.0, 1.0], min_length=3, max_length=3)
-    bounding_box: BoundingBox = Field(..., alias="boundingBox")
+    bounding_box: BoundingBox = Field(default_factory=BoundingBox, validation_alias=AliasChoices("boundingBox", "dimensions"))
     visible: bool = True
 
     model_config = {"populate_by_name": True}
@@ -137,18 +133,21 @@ class FurnitureItem(BaseModel):
 
 class RoomConnection(BaseModel):
     to_room_id: str = Field(..., alias="toRoomId")
-    via: ConnectionVia
+    via: ConnectionVia = ConnectionVia.door
     door_id: Optional[str] = Field(None, alias="doorId")
 
     model_config = {"populate_by_name": True}
 
 
 class Room(BaseModel):
-    room_id: str = Field(..., alias="roomId")
-    type: RoomType
+    room_id: str = Field(..., validation_alias=AliasChoices("roomId", "id"), serialization_alias="id")
+    type: str
     label: Optional[str] = None
-    polygon: list[list[float]]  # [[x,y], ...]
-    area_sq_ft: Optional[float] = Field(None, alias="areaSqFt")
+    name: Optional[str] = None
+    polygon: list[list[float]]
+    area: Optional[float] = None
+    area_sq_ft: Optional[float] = Field(None, validation_alias=AliasChoices("areaSqFt", "area_sq_ft"))
+    wall_ids: list[str] = Field(default_factory=list, validation_alias=AliasChoices("wallIds", "wall_ids"))
     connections: list[RoomConnection] = []
     furniture: list[FurnitureItem] = []
     visible: bool = True
@@ -157,72 +156,95 @@ class Room(BaseModel):
 
 
 class Wall(BaseModel):
-    wall_id: str = Field(..., alias="wallId")
-    start: list[float] = Field(..., min_length=2, max_length=2)
-    end: list[float] = Field(..., min_length=2, max_length=2)
+    wall_id: str = Field(..., validation_alias=AliasChoices("wallId", "id"), serialization_alias="id")
+    start: list[float] = Field(..., validation_alias=AliasChoices("startPoint", "start"), min_length=2, max_length=2)
+    end: list[float] = Field(..., validation_alias=AliasChoices("endPoint", "end"), min_length=2, max_length=2)
     thickness: float = 0.2
     height: float = 3.0
     material: str = "concrete"
-    is_load_bearing: bool = False
+    is_load_bearing: bool = Field(False, validation_alias=AliasChoices("isExterior", "is_load_bearing"))
     visible: bool = True
 
     model_config = {"populate_by_name": True}
 
 
 class Door(BaseModel):
-    door_id: str = Field(..., alias="doorId")
-    wall_id: str = Field(..., alias="wallId")
-    position: float = 0.5   # 0–1 along wall
+    door_id: str = Field(..., validation_alias=AliasChoices("doorId", "id"), serialization_alias="id")
+    wall_id: str = Field(..., validation_alias=AliasChoices("wallId", "wall_id"), serialization_alias="wallId")
+    position: Union[float, list[float]] = 0.5
     width: float = 0.9
     height: float = 2.1
-    swing: DoorSwing = DoorSwing.in_left
-    is_entrance: bool = False
+    swing: str = "in-left"
+    is_entrance: bool = Field(False, validation_alias=AliasChoices("isEntrance", "is_entrance"))
     visible: bool = True
 
     model_config = {"populate_by_name": True}
 
 
 class Window(BaseModel):
-    window_id: str = Field(..., alias="windowId")
-    wall_id: str = Field(..., alias="wallId")
-    position: float = 0.5
+    window_id: str = Field(..., validation_alias=AliasChoices("windowId", "id"), serialization_alias="id")
+    wall_id: str = Field(..., validation_alias=AliasChoices("wallId", "wall_id"), serialization_alias="wallId")
+    position: Union[float, list[float]] = 0.5
     width: float = 1.2
     height: float = 1.2
-    sill: float = 0.9      # height from floor
+    sill: float = Field(0.9, validation_alias=AliasChoices("sillHeight", "sill"))
     visible: bool = True
 
     model_config = {"populate_by_name": True}
 
 
 class Staircase(BaseModel):
-    staircase_id: Optional[str] = Field(None, alias="staircaseId")
-    location: str = "internal"    # "internal" | "external"
-    connects_floors: list[int] = Field(..., alias="connectsFloors")
-    footprint: list[list[float]]  # polygon [[x,y], ...]
-    style: str = "straight"       # "straight" | "l-shaped" | "u-shaped" | "spiral"
+    staircase_id: Optional[str] = Field(None, validation_alias=AliasChoices("staircaseId", "id"), serialization_alias="id")
+    location: str = "internal"
+    connects_floors: list[int] = Field(default_factory=lambda: [0, 1], validation_alias=AliasChoices("connectsFloors", "connects_floors"))
+    start_floor_index: Optional[int] = Field(None, alias="startFloorIndex")
+    end_floor_index: Optional[int] = Field(None, alias="endFloorIndex")
+    footprint: list[list[float]] = Field(default_factory=list)
+    position: Optional[list[float]] = None
+    width: Optional[float] = 1.2
+    length: Optional[float] = 2.6
+    style: str = "straight"
+    type: str = "straight"
+
+    model_config = {"populate_by_name": True}
+
+
+class Roof(BaseModel):
+    roof_id: Optional[str] = Field(None, validation_alias=AliasChoices("roofId", "id"), serialization_alias="id")
+    type: str = "pitched_hip"
+    height: float = 2.2
+    overhang: float = 0.6
+    color: Optional[str] = "#b91c1c"
+    visible: bool = True
 
     model_config = {"populate_by_name": True}
 
 
 class Floor(BaseModel):
     floor_index: int = Field(..., alias="floorIndex")
-    label: str
-    elevation: float = 0.0         # metres from ground
-    floor_height: float = Field(3.0, alias="floorHeight")  # floor-to-ceiling
+    label: str = "Floor"
+    name: Optional[str] = None
+    elevation: float = 0.0
+    floor_height: float = Field(3.0, alias="floorHeight")
     rooms: list[Room] = []
     walls: list[Wall] = []
     doors: list[Door] = []
     windows: list[Window] = []
     staircase: Optional[Staircase] = None
+    staircases: list[Staircase] = Field(default_factory=list)
+    roof: Optional[Roof] = None
 
     model_config = {"populate_by_name": True}
 
 
 class Entrance(BaseModel):
-    floor_index: int = Field(..., alias="floorIndex")
-    wall_id: str = Field(..., alias="wallId")
+    id: Optional[str] = "entrance-0"
+    floor_index: int = Field(0, alias="floorIndex")
+    wall_id: Optional[str] = Field(None, alias="wallId")
     door_id: Optional[str] = Field(None, alias="doorId")
-    facing: str = "south"   # cardinal direction
+    position: Optional[list[float]] = Field(default_factory=lambda: [0.0, 0.0])
+    type: str = "main"
+    facing: str = "south"
 
     model_config = {"populate_by_name": True}
 
@@ -231,8 +253,10 @@ class BuildingMetadata(BaseModel):
     created_by: Optional[str] = Field(None, alias="createdBy")
     created_via: CreatedVia = Field(CreatedVia.template, alias="createdVia")
     created_at: Optional[str] = Field(None, alias="createdAt")
+    updated_at: Optional[str] = Field(None, alias="updatedAt")
     style: Optional[str] = None
     description: Optional[str] = None
+    tags: Optional[list[str]] = None
 
     model_config = {"populate_by_name": True}
 
@@ -242,12 +266,14 @@ class BuildingMetadata(BaseModel):
 # ────────────────────────────────────────────────
 
 class Building(BaseModel):
+    schema_version: str = Field("1.0", alias="schemaVersion")
     building_id: str = Field(..., alias="buildingId")
     building_type: BuildingType = Field(BuildingType.house, alias="buildingType")
     name: str = "Untitled Building"
     units: Units = Units.metric
     floors: list[Floor] = []
     entrance: Optional[Entrance] = None
+    entrances: list[Entrance] = Field(default_factory=list)
     metadata: BuildingMetadata = Field(default_factory=BuildingMetadata)
 
     model_config = {"populate_by_name": True}

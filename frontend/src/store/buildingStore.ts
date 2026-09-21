@@ -172,21 +172,67 @@ export const useBuildingStore = create<BuildingState>((set) => ({
 
     const newBuilding: Building = {
       ...building,
-      floors: building.floors.map(floor => ({
-        ...floor,
-        rooms: selectedObjectType === 'room'
-          ? floor.rooms.filter(r => r.id !== selectedObjectId)
-          : floor.rooms.map(room => ({
-              ...room,
-              furniture: selectedObjectType === 'furniture'
-                ? room.furniture.filter(f => f.id !== selectedObjectId)
-                : room.furniture
-            })),
-        walls: selectedObjectType === 'wall' ? floor.walls.filter(w => w.id !== selectedObjectId) : floor.walls,
-        doors: selectedObjectType === 'door' ? floor.doors.filter(d => d.id !== selectedObjectId) : floor.doors,
-        windows: selectedObjectType === 'window' ? floor.windows.filter(w => w.id !== selectedObjectId) : floor.windows,
-        staircases: selectedObjectType === 'staircase' ? floor.staircases.filter(s => s.id !== selectedObjectId) : floor.staircases,
-      }))
+      floors: building.floors.map(floor => {
+        if (selectedObjectType === 'room') {
+          const deletedRoom = floor.rooms.find(r => r.id === selectedObjectId);
+          const remainingRooms = floor.rooms.filter(r => r.id !== selectedObjectId)
+            .map(r => ({
+              ...r,
+              connections: (r.connections || []).filter(c => c.toRoomId !== selectedObjectId)
+            }));
+
+          // Find walls referenced by remaining rooms
+          const usedWallIds = new Set(remainingRooms.flatMap(r => r.wallIds || []));
+          // Remove walls that belonged to deleted room and are no longer used by any room
+          const remainingWalls = deletedRoom 
+            ? floor.walls.filter(w => !deletedRoom.wallIds.includes(w.id) || usedWallIds.has(w.id))
+            : floor.walls;
+
+          const remainingWallIds = new Set(remainingWalls.map(w => w.id));
+          const remainingDoors = floor.doors.filter(d => remainingWallIds.has(d.wallId));
+          const remainingWindows = floor.windows.filter(w => remainingWallIds.has(w.wallId));
+
+          return {
+            ...floor,
+            rooms: remainingRooms,
+            walls: remainingWalls,
+            doors: remainingDoors,
+            windows: remainingWindows
+          };
+        } else if (selectedObjectType === 'wall') {
+          const remainingWalls = floor.walls.filter(w => w.id !== selectedObjectId);
+          const remainingDoors = floor.doors.filter(d => d.wallId !== selectedObjectId);
+          const remainingWindows = floor.windows.filter(w => w.wallId !== selectedObjectId);
+          const updatedRooms = floor.rooms.map(r => ({
+            ...r,
+            wallIds: (r.wallIds || []).filter(wId => wId !== selectedObjectId)
+          }));
+
+          return {
+            ...floor,
+            rooms: updatedRooms,
+            walls: remainingWalls,
+            doors: remainingDoors,
+            windows: remainingWindows
+          };
+        } else if (selectedObjectType === 'door') {
+          return { ...floor, doors: floor.doors.filter(d => d.id !== selectedObjectId) };
+        } else if (selectedObjectType === 'window') {
+          return { ...floor, windows: floor.windows.filter(w => w.id !== selectedObjectId) };
+        } else if (selectedObjectType === 'furniture') {
+          return {
+            ...floor,
+            rooms: floor.rooms.map(r => ({
+              ...r,
+              furniture: r.furniture.filter(f => f.id !== selectedObjectId)
+            }))
+          };
+        } else if (selectedObjectType === 'staircase') {
+          return { ...floor, staircases: floor.staircases.filter(s => s.id !== selectedObjectId) };
+        }
+
+        return floor;
+      })
     };
 
     const newUndoStack = [...state.undoStack, building].slice(-MAX_UNDO_STACK);
@@ -199,5 +245,5 @@ export const useBuildingStore = create<BuildingState>((set) => ({
       redoStack: [],
       isDirty: true
     };
-  })
+  }),
 }));

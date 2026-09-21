@@ -27,6 +27,42 @@ const ROOM_PRESETS: RoomPreset[] = [
   { type: 'storeroom', label: 'Storeroom', w: 2.5, h: 2, emoji: '📦' },
 ];
 
+// Helper: Point in polygon test (Ray casting)
+const isPointInPolygon = (point: Vector2, polygon: Vector2[]): boolean => {
+  const [x, y] = point;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0], yi = polygon[i][1];
+    const xj = polygon[j][0], yj = polygon[j][1];
+    const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi + 0.000001) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+};
+
+// Helper: Point to line segment distance and projection
+const projectPointToSegment = (pt: Vector2, segStart: Vector2, segEnd: Vector2) => {
+  const [px, py] = pt;
+  const [sx, sy] = segStart;
+  const [ex, ey] = segEnd;
+  const dx = ex - sx;
+  const dy = ey - sy;
+  const lenSq = dx * dx + dy * dy;
+
+  if (lenSq === 0) {
+    return { distance: Math.hypot(px - sx, py - sy), t: 0, proj: [sx, sy] as Vector2 };
+  }
+
+  let t = ((px - sx) * dx + (py - sy) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+
+  const projX = sx + t * dx;
+  const projY = sy + t * dy;
+  const distance = Math.hypot(px - projX, py - projY);
+
+  return { distance, t, proj: [projX, projY] as Vector2 };
+};
+
 export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSwitchTo3D }) => {
   const { building, activeFloorIndex, selectedObjectId, selectObject, updateBuilding } = useBuildingStore();
   const { addToast } = useUIStore();
@@ -35,15 +71,16 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
   const [selectedRoomPreset, setSelectedRoomPreset] = useState<RoomPreset>(ROOM_PRESETS[0]);
   const [selectedFurnitureType, setSelectedFurnitureType] = useState<FurnitureType>('sofa');
 
-  // Interactive drawing, dragging & resizing state
+  // Interactive drawing state
   const [drawingStart, setDrawingStart] = useState<Vector2 | null>(null);
   const [hoverPos, setHoverPos] = useState<Vector2 | null>(null);
-  
-  // Dragging state for moving room
+
+  // Transient Dragging state for moving room
   const [draggingRoomId, setDraggingRoomId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<Vector2>([0, 0]);
+  const [initialRoomState, setInitialRoomState] = useState<{ room: Room; walls: Wall[]; furniture: FurnitureItem[] } | null>(null);
 
-  // Resizing state for room handles: corner index 0=TL, 1=TR, 2=BR, 3=BL
+  // Transient Resizing state for room handles: corner index 0=TL, 1=TR, 2=BR, 3=BL
   const [resizingRoomId, setResizingRoomId] = useState<string | null>(null);
   const [resizingCornerIndex, setResizingCornerIndex] = useState<number | null>(null);
 
@@ -66,6 +103,36 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
     return [snapToGrid(rawX / GRID_SIZE), snapToGrid(rawY / GRID_SIZE)];
   };
 
+  // Helper to reuse existing matching wall or create a new one
+  const findOrCreateWall = (
+    start: Vector2,
+    end: Vector2,
+    existingWalls: Wall[],
+    newWallsAccumulator: Wall[]
+  ): Wall => {
+    const allWalls = [...existingWalls, ...newWallsAccumulator];
+    const existing = allWalls.find(w => 
+      (Math.hypot(w.startPoint[0] - start[0], w.startPoint[1] - start[1]) < 0.1 &&
+       Math.hypot(w.endPoint[0] - end[0], w.endPoint[1] - end[1]) < 0.1) ||
+      (Math.hypot(w.startPoint[0] - end[0], w.startPoint[1] - end[1]) < 0.1 &&
+       Math.hypot(w.endPoint[0] - start[0], w.endPoint[1] - start[1]) < 0.1)
+    );
+
+    if (existing) return existing;
+
+    const wallId = `wall-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 4)}`;
+    const newWall: Wall = {
+      id: wallId,
+      startPoint: start,
+      endPoint: end,
+      thickness: 0.2,
+      height: currentFloor.floorToFloorHeight || 3.0,
+      isExterior: true
+    };
+    newWallsAccumulator.push(newWall);
+    return newWall;
+  };
+
   const createRoomWithWalls = (preset: RoomPreset, posX: number, posY: number) => {
     const rId = `room-${Date.now().toString(36)}`;
     const w = preset.w;
@@ -77,10 +144,11 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
       [posX, posY + h]
     ];
 
-    const wall1: Wall = { id: `wall-${rId}-1`, startPoint: [posX, posY], endPoint: [posX + w, posY], thickness: 0.2, height: 3.0, isExterior: true };
-    const wall2: Wall = { id: `wall-${rId}-2`, startPoint: [posX + w, posY], endPoint: [posX + w, posY + h], thickness: 0.2, height: 3.0, isExterior: true };
-    const wall3: Wall = { id: `wall-${rId}-3`, startPoint: [posX + w, posY + h], endPoint: [posX, posY + h], thickness: 0.2, height: 3.0, isExterior: true };
-    const wall4: Wall = { id: `wall-${rId}-4`, startPoint: [posX, posY + h], endPoint: [posX, posY], thickness: 0.2, height: 3.0, isExterior: true };
+    const newWalls: Wall[] = [];
+    const wall1 = findOrCreateWall([posX, posY], [posX + w, posY], currentFloor.walls, newWalls);
+    const wall2 = findOrCreateWall([posX + w, posY], [posX + w, posY + h], currentFloor.walls, newWalls);
+    const wall3 = findOrCreateWall([posX + w, posY + h], [posX, posY + h], currentFloor.walls, newWalls);
+    const wall4 = findOrCreateWall([posX, posY + h], [posX, posY], currentFloor.walls, newWalls);
 
     const newRoom: Room = {
       id: rId,
@@ -88,7 +156,8 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
       type: preset.type,
       wallIds: [wall1.id, wall2.id, wall3.id, wall4.id],
       polygon: poly,
-      area: w * h * 10.7639,
+      area: w * h,
+      areaSqFt: w * h * 10.7639,
       furniture: [],
       connections: []
     };
@@ -98,12 +167,12 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
       floors: b.floors.map(f => f.index === activeFloorIndex ? {
         ...f,
         rooms: [...f.rooms, newRoom],
-        walls: [...f.walls, wall1, wall2, wall3, wall4]
+        walls: [...f.walls, ...newWalls]
       } : f)
     }));
 
     selectObject(rId, 'room');
-    addToast({ type: 'success', message: `${preset.label} placed with perimeter walls!` });
+    addToast({ type: 'success', message: `${preset.label} placed (${w}m × ${h}m)` });
   };
 
   const handleCanvasClick = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -127,7 +196,7 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
           startPoint: drawingStart,
           endPoint: [mx, my],
           thickness: 0.2,
-          height: 3.0,
+          height: currentFloor.floorToFloorHeight || 3.0,
           isExterior: false
         };
         updateBuilding(b => ({
@@ -138,37 +207,84 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
         addToast({ type: 'success', message: 'Wall created' });
       }
     } else if (activeTool === 'furniture') {
+      // Find room containing click point using point-in-polygon test
+      const containingRoom = currentFloor.rooms.find(r => isPointInPolygon([mx, my], r.polygon));
+      if (!containingRoom) {
+        addToast({ type: 'warning', message: 'Click inside a room to place furniture!' });
+        return;
+      }
+
+      const dims = FURNITURE_DIMENSIONS[selectedFurnitureType] || { w: 1, d: 1, h: 0.8 };
       const newFurn: FurnitureItem = {
         id: `furn-${Date.now().toString(36)}`,
         type: selectedFurnitureType,
         position: [mx, 0, my],
-        rotation: [0, 0, 0]
+        rotation: [0, 0, 0],
+        dimensions: [dims.w, dims.h, dims.d],
+        visible: true
       };
-      const targetRoom = currentFloor.rooms[0];
-      if (!targetRoom) {
-        addToast({ type: 'warning', message: 'Place a room first to contain furniture' });
-        return;
-      }
+
       updateBuilding(b => ({
         ...b,
         floors: b.floors.map(f => f.index === activeFloorIndex ? {
           ...f,
-          rooms: f.rooms.map(r => r.id === targetRoom.id ? { ...r, furniture: [...r.furniture, newFurn] } : r)
+          rooms: f.rooms.map(r => r.id === containingRoom.id ? { ...r, furniture: [...r.furniture, newFurn] } : r)
         } : f)
       }));
-      addToast({ type: 'success', message: `${selectedFurnitureType.replace(/_/g, ' ')} placed` });
-    } else if (activeTool === 'door') {
-      const wall = currentFloor.walls[0];
-      if (!wall) return;
-      const newDoor: Door = { id: `door-${Date.now().toString(36)}`, wallId: wall.id, position: [mx, my], width: 0.9, height: 2.1, swing: 'in-left' };
-      updateBuilding(b => ({ ...b, floors: b.floors.map(f => f.index === activeFloorIndex ? { ...f, doors: [...f.doors, newDoor] } : f) }));
-      addToast({ type: 'success', message: 'Door added' });
-    } else if (activeTool === 'window') {
-      const wall = currentFloor.walls[0];
-      if (!wall) return;
-      const newWin: Window = { id: `win-${Date.now().toString(36)}`, wallId: wall.id, position: [mx, my], width: 1.2, height: 1.2, sillHeight: 0.9 };
-      updateBuilding(b => ({ ...b, floors: b.floors.map(f => f.index === activeFloorIndex ? { ...f, windows: [...f.windows, newWin] } : f) }));
-      addToast({ type: 'success', message: 'Window added' });
+      addToast({ type: 'success', message: `${selectedFurnitureType.replace(/_/g, ' ')} placed inside ${containingRoom.name}` });
+    } else if (activeTool === 'door' || activeTool === 'window') {
+      // Find nearest wall within 1.5m tolerance
+      let nearestWall: Wall | null = null;
+      let minDistance = 1.5;
+      let bestT = 0.5;
+      let bestProj: Vector2 = [mx, my];
+
+      for (const w of currentFloor.walls) {
+        const { distance, t, proj } = projectPointToSegment([mx, my], w.startPoint, w.endPoint);
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearestWall = w;
+          bestT = t;
+          bestProj = proj;
+        }
+      }
+
+      if (!nearestWall) {
+        addToast({ type: 'warning', message: `Click closer to a wall to place ${activeTool}` });
+        return;
+      }
+
+      // Clamp t so opening fits inside wall
+      const wallLen = Math.hypot(nearestWall.endPoint[0] - nearestWall.startPoint[0], nearestWall.endPoint[1] - nearestWall.startPoint[1]);
+      const openingWidth = activeTool === 'door' ? 0.9 : 1.2;
+      const marginT = wallLen > 0 ? (openingWidth / 2) / wallLen : 0.1;
+      const clampedT = Math.max(marginT, Math.min(1 - marginT, bestT));
+
+      if (activeTool === 'door') {
+        const newDoor: Door = {
+          id: `door-${Date.now().toString(36)}`,
+          wallId: nearestWall.id,
+          position: bestProj,
+          t: clampedT,
+          width: 0.9,
+          height: 2.1,
+          swing: 'in-left'
+        };
+        updateBuilding(b => ({ ...b, floors: b.floors.map(f => f.index === activeFloorIndex ? { ...f, doors: [...f.doors, newDoor] } : f) }));
+        addToast({ type: 'success', message: 'Door attached to wall' });
+      } else {
+        const newWin: Window = {
+          id: `win-${Date.now().toString(36)}`,
+          wallId: nearestWall.id,
+          position: bestProj,
+          t: clampedT,
+          width: 1.2,
+          height: 1.2,
+          sillHeight: 0.9
+        };
+        updateBuilding(b => ({ ...b, floors: b.floors.map(f => f.index === activeFloorIndex ? { ...f, windows: [...f.windows, newWin] } : f) }));
+        addToast({ type: 'success', message: 'Window attached to wall' });
+      }
     }
   };
 
@@ -179,6 +295,13 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
     const [mx, my] = getCanvasCoords(e as any);
     const minX = Math.min(...r.polygon.map(p => p[0]));
     const minY = Math.min(...r.polygon.map(p => p[1]));
+
+    const assocWalls = currentFloor.walls.filter(w => r.wallIds.includes(w.id));
+    setInitialRoomState({
+      room: JSON.parse(JSON.stringify(r)),
+      walls: JSON.parse(JSON.stringify(assocWalls)),
+      furniture: JSON.parse(JSON.stringify(r.furniture))
+    });
 
     setDraggingRoomId(r.id);
     setDragOffset([mx - minX, my - minY]);
@@ -196,10 +319,18 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
     setHoverPos(coords);
 
     // ── Handle Room Moving ────────────────────────────────────────────────
-    if (draggingRoomId) {
+    if (draggingRoomId && initialRoomState) {
       const [mx, my] = coords;
       const newMinX = mx - dragOffset[0];
       const newMinY = my - dragOffset[1];
+
+      const origPoly = initialRoomState.room.polygon;
+      const curMinX = Math.min(...origPoly.map(p => p[0]));
+      const curMinY = Math.min(...origPoly.map(p => p[1]));
+      const dx = newMinX - curMinX;
+      const dy = newMinY - curMinY;
+
+      const newPoly: Vector2[] = origPoly.map(p => [snapToGrid(p[0] + dx), snapToGrid(p[1] + dy)]);
 
       updateBuilding(b => ({
         ...b,
@@ -207,19 +338,25 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
           ...f,
           rooms: f.rooms.map(r => {
             if (r.id !== draggingRoomId) return r;
-            const curMinX = Math.min(...r.polygon.map(p => p[0]));
-            const curMinY = Math.min(...r.polygon.map(p => p[1]));
-            const dx = newMinX - curMinX;
-            const dy = newMinY - curMinY;
-
-            const newPoly: Vector2[] = r.polygon.map(p => [p[0] + dx, p[1] + dy] as Vector2);
-            const w = Math.abs(newPoly[1][0] - newPoly[0][0]);
-            const h = Math.abs(newPoly[2][1] - newPoly[1][1]);
-
+            const newFurn = (r.furniture || []).map(furn => ({
+              ...furn,
+              position: [furn.position[0] + dx, furn.position[1], (furn.position[2] ?? furn.position[1]) + dy] as [number, number, number]
+            }));
             return {
               ...r,
               polygon: newPoly,
-              area: w * h * 10.7639
+              furniture: newFurn
+            };
+          }),
+          // Update endpoints of attached walls
+          walls: f.walls.map(w => {
+            if (!initialRoomState.room.wallIds.includes(w.id)) return w;
+            const origWall = initialRoomState.walls.find(ow => ow.id === w.id);
+            if (!origWall) return w;
+            return {
+              ...w,
+              startPoint: [snapToGrid(origWall.startPoint[0] + dx), snapToGrid(origWall.startPoint[1] + dy)],
+              endPoint: [snapToGrid(origWall.endPoint[0] + dx), snapToGrid(origWall.endPoint[1] + dy)]
             };
           })
         } : f)
@@ -273,7 +410,8 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
             return {
               ...r,
               polygon: newPoly,
-              area: w * h * 10.7639
+              area: w * h,
+              areaSqFt: w * h * 10.7639
             };
           })
         } : f)
@@ -284,13 +422,23 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
   const handleMouseUp = () => {
     if (draggingRoomId) {
       setDraggingRoomId(null);
-      addToast({ type: 'info', message: 'Room repositioned' });
+      setInitialRoomState(null);
+      addToast({ type: 'info', message: 'Room and dependent geometry updated' });
     }
     if (resizingRoomId) {
       setResizingRoomId(null);
       setResizingCornerIndex(null);
       addToast({ type: 'info', message: 'Room dimensions updated' });
     }
+  };
+
+  // Convert CAD model to 3D validated building and switch views
+  const handleConvertAndSwitch = () => {
+    if (currentFloor.rooms.length === 0) {
+      addToast({ type: 'warning', message: 'Please place at least one room before viewing in 3D.' });
+      return;
+    }
+    onSwitchTo3D();
   };
 
   const toSvgX = (mX: number) => CENTER_OFFSET + mX * GRID_SIZE;
@@ -314,7 +462,7 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
           Room Preset Palette
         </h3>
         <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-          Click or drag a room preset to place it on the 2D CAD canvas:
+          Click a preset to select, then click on the canvas to place:
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -394,7 +542,7 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
           )}
 
           <button
-            onClick={onSwitchTo3D}
+            onClick={handleConvertAndSwitch}
             style={{
               background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
               color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 'var(--radius-md)', fontWeight: 600, fontSize: '13px', cursor: 'pointer'
@@ -470,7 +618,7 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
                     fontFamily="monospace"
                     pointerEvents="none"
                   >
-                    {wM.toFixed(1)}m × {hM.toFixed(1)}m ({room.area ? room.area.toFixed(0) : (wM * hM * 10.76).toFixed(0)} sq ft)
+                    {wM.toFixed(1)}m × {hM.toFixed(1)}m ({(room.areaSqFt || wM * hM * 10.76).toFixed(0)} sq ft)
                   </text>
 
                   {/* Interactive Corner Resize Handles (Shown when room is selected) */}

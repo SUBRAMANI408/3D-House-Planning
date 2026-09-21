@@ -13,123 +13,320 @@ export const BuildingRenderer: React.FC = () => {
 
   const maxFloorIndex = building.floors.reduce((max, f) => Math.max(max, f.index), 0);
 
-  return (
-    <group name="building-root">
-      {building.floors.map((floor) => {
-        const floorIdx = floor.index ?? 0;
-        const opacity = 1.0;
-        const depthWrite = true;
-        const yOffset = floor.height ?? (floorIdx * 3.0);
+  // ── Top-Level Memoized Floor Render Data (Rule of Hooks Compliant) ──────────
+  const floorRenderData = useMemo(() => {
+    return building.floors.map((floor) => {
+      const floorIdx = floor.index ?? 0;
+      const elevation = floor.elevation ?? floor.height ?? (floorIdx * 3.0);
+      const floorHeight = floor.floorToFloorHeight ?? 3.0;
 
-        // Derive full wall list: combine explicit floor.walls with room polygon perimeter walls
-        const effectiveWalls = useMemo(() => {
-          const derived: Wall[] = [];
-          const wallSet = new Set<string>();
+      // 1. Authoritative Wall Graph (eliminates duplicate overlapping walls)
+      const effectiveWalls: Wall[] = [];
+      const wallMap = new Set<string>();
 
-          // Add explicit walls from floor JSON
-          if (floor.walls && floor.walls.length > 0) {
-            floor.walls.forEach(w => {
-              const key = `${w.startPoint[0].toFixed(1)},${w.startPoint[1].toFixed(1)}-${w.endPoint[0].toFixed(1)},${w.endPoint[1].toFixed(1)}`;
-              if (!wallSet.has(key)) {
-                wallSet.add(key);
-                derived.push(w);
-              }
+      if (floor.walls && floor.walls.length > 0) {
+        floor.walls.forEach(w => {
+          const key = `${w.startPoint[0].toFixed(2)},${w.startPoint[1].toFixed(2)}-${w.endPoint[0].toFixed(2)},${w.endPoint[1].toFixed(2)}`;
+          const revKey = `${w.endPoint[0].toFixed(2)},${w.endPoint[1].toFixed(2)}-${w.startPoint[0].toFixed(2)},${w.startPoint[1].toFixed(2)}`;
+          if (!wallMap.has(key) && !wallMap.has(revKey)) {
+            wallMap.add(key);
+            effectiveWalls.push(w);
+          }
+        });
+      }
+
+      // Auto-derive missing partition/perimeter walls from room polygons
+      floor.rooms.forEach((room, rIdx) => {
+        if (!room.polygon || room.polygon.length < 3) return;
+        const pts = room.polygon;
+        for (let i = 0; i < pts.length; i++) {
+          const p1 = pts[i];
+          const p2 = pts[(i + 1) % pts.length];
+          const key1 = `${p1[0].toFixed(2)},${p1[1].toFixed(2)}-${p2[0].toFixed(2)},${p2[1].toFixed(2)}`;
+          const key2 = `${p2[0].toFixed(2)},${p2[1].toFixed(2)}-${p1[0].toFixed(2)},${p1[1].toFixed(2)}`;
+
+          if (!wallMap.has(key1) && !wallMap.has(key2)) {
+            wallMap.add(key1);
+            effectiveWalls.push({
+              id: `wall-auto-${floorIdx}-${rIdx}-${i}`,
+              startPoint: [p1[0], p1[1]],
+              endPoint: [p2[0], p2[1]],
+              thickness: 0.2,
+              height: floorHeight,
+              isExterior: i === 0 || i === pts.length - 1
+            });
+          }
+        }
+      });
+
+      // 2. Wall Opening Segment Calculator for Doors & Windows
+      const wallSegments = effectiveWalls.flatMap((wall) => {
+        const sp = wall.startPoint;
+        const ep = wall.endPoint;
+        const dx = ep[0] - sp[0];
+        const dz = ep[1] - sp[1];
+        const wallLen = Math.sqrt(dx * dx + dz * dz);
+        if (wallLen < 0.05) return [];
+
+        const angle = Math.atan2(dz, dx);
+        const thickness = wall.thickness ?? 0.2;
+        const height = wall.height ?? floorHeight;
+
+        // Doors on this wall
+        const doorsOnWall = (floor.doors ?? []).filter(d => d.wallId === wall.id || d.wallId === '');
+        // Windows on this wall
+        const windowsOnWall = (floor.windows ?? []).filter(w => w.wallId === wall.id || w.wallId === '');
+
+        // Calculate cutouts along wall length (t in [0..1])
+        const cutouts: { startDist: number; endDist: number; type: 'door' | 'window'; obj: Door | Window }[] = [];
+
+        doorsOnWall.forEach(d => {
+          let t = 0.5;
+          if (typeof d.position === 'number') {
+            t = d.position;
+          } else if (Array.isArray(d.position)) {
+            const px = d.position[0] - sp[0];
+            const pz = d.position[1] - sp[1];
+            t = (px * dx + pz * dz) / (wallLen * wallLen);
+          }
+          t = Math.max(0.05, Math.min(0.95, t));
+          const centerDist = t * wallLen;
+          const halfW = (d.width ?? 0.9) / 2;
+          cutouts.push({
+            startDist: Math.max(0, centerDist - halfW),
+            endDist: Math.min(wallLen, centerDist + halfW),
+            type: 'door',
+            obj: d
+          });
+        });
+
+        windowsOnWall.forEach(w => {
+          let t = 0.5;
+          if (typeof w.position === 'number') {
+            t = w.position;
+          } else if (Array.isArray(w.position)) {
+            const px = w.position[0] - sp[0];
+            const pz = w.position[1] - sp[1];
+            t = (px * dx + pz * dz) / (wallLen * wallLen);
+          }
+          t = Math.max(0.05, Math.min(0.95, t));
+          const centerDist = t * wallLen;
+          const halfW = (w.width ?? 1.2) / 2;
+          cutouts.push({
+            startDist: Math.max(0, centerDist - halfW),
+            endDist: Math.min(wallLen, centerDist + halfW),
+            type: 'window',
+            obj: w
+          });
+        });
+
+        // Sort cutouts along wall
+        cutouts.sort((a, b) => a.startDist - b.startDist);
+
+        // Sub-segment generation
+        const segments: {
+          id: string;
+          wallId: string;
+          midX: number;
+          midZ: number;
+          length: number;
+          height: number;
+          yOffset: number;
+          thickness: number;
+          angle: number;
+          isExterior: boolean;
+        }[] = [];
+
+        let currentDist = 0;
+
+        cutouts.forEach((c, idx) => {
+          // Solid wall segment before cutout
+          if (c.startDist > currentDist + 0.05) {
+            const segLen = c.startDist - currentDist;
+            const segMidDist = currentDist + segLen / 2;
+            const frac = segMidDist / wallLen;
+            segments.push({
+              id: `${wall.id}-seg-${idx}-full`,
+              wallId: wall.id,
+              midX: sp[0] + frac * dx,
+              midZ: sp[1] + frac * dz,
+              length: segLen,
+              height: height,
+              yOffset: height / 2,
+              thickness,
+              angle,
+              isExterior: wall.isExterior
             });
           }
 
-          // Auto-derive missing perimeter and partition walls from room polygons
-          floor.rooms.forEach((room, rIdx) => {
-            if (!room.polygon || room.polygon.length < 3) return;
-            const pts = room.polygon;
-            for (let i = 0; i < pts.length; i++) {
-              const p1 = pts[i];
-              const p2 = pts[(i + 1) % pts.length];
-              const key1 = `${p1[0].toFixed(1)},${p1[1].toFixed(1)}-${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
-              const key2 = `${p2[0].toFixed(1)},${p2[1].toFixed(1)}-${p1[0].toFixed(1)},${p1[1].toFixed(1)}`;
+          // Lintel / Sill wall segments around cutout
+          const cutoutMidDist = (c.startDist + c.endDist) / 2;
+          const cutoutLen = c.endDist - c.startDist;
+          const frac = cutoutMidDist / wallLen;
+          const cx = sp[0] + frac * dx;
+          const cz = sp[1] + frac * dz;
 
-              if (!wallSet.has(key1) && !wallSet.has(key2)) {
-                wallSet.add(key1);
-                derived.push({
-                  id: `wall-auto-${floorIdx}-${rIdx}-${i}`,
-                  startPoint: [p1[0], p1[1]],
-                  endPoint: [p2[0], p2[1]],
-                  thickness: 0.2,
-                  height: 3.0,
-                  isExterior: i === 0 || i === pts.length - 1
-                });
-              }
+          if (c.type === 'door') {
+            const doorObj = c.obj as Door;
+            const doorH = doorObj.height ?? 2.1;
+            const headerH = Math.max(0, height - doorH);
+            if (headerH > 0.05) {
+              segments.push({
+                id: `${wall.id}-door-lintel-${idx}`,
+                wallId: wall.id,
+                midX: cx,
+                midZ: cz,
+                length: cutoutLen,
+                height: headerH,
+                yOffset: doorH + headerH / 2,
+                thickness,
+                angle,
+                isExterior: wall.isExterior
+              });
             }
+          } else if (c.type === 'window') {
+            const winObj = c.obj as Window;
+            const sillH = winObj.sillHeight ?? winObj.sill ?? 0.9;
+            const winH = winObj.height ?? 1.2;
+
+            // Wall below window sill
+            if (sillH > 0.05) {
+              segments.push({
+                id: `${wall.id}-win-sill-${idx}`,
+                wallId: wall.id,
+                midX: cx,
+                midZ: cz,
+                length: cutoutLen,
+                height: sillH,
+                yOffset: sillH / 2,
+                thickness,
+                angle,
+                isExterior: wall.isExterior
+              });
+            }
+
+            // Wall above window lintel
+            const topH = Math.max(0, height - (sillH + winH));
+            if (topH > 0.05) {
+              segments.push({
+                id: `${wall.id}-win-lintel-${idx}`,
+                wallId: wall.id,
+                midX: cx,
+                midZ: cz,
+                length: cutoutLen,
+                height: topH,
+                yOffset: (sillH + winH) + topH / 2,
+                thickness,
+                angle,
+                isExterior: wall.isExterior
+              });
+            }
+          }
+
+          currentDist = Math.max(currentDist, c.endDist);
+        });
+
+        // Remaining wall segment to end
+        if (wallLen > currentDist + 0.05) {
+          const segLen = wallLen - currentDist;
+          const segMidDist = currentDist + segLen / 2;
+          const frac = segMidDist / wallLen;
+          segments.push({
+            id: `${wall.id}-seg-end`,
+            wallId: wall.id,
+            midX: sp[0] + frac * dx,
+            midZ: sp[1] + frac * dz,
+            length: segLen,
+            height: height,
+            yOffset: height / 2,
+            thickness,
+            angle,
+            isExterior: wall.isExterior
           });
+        }
 
-          return derived;
-        }, [floor.walls, floor.rooms, floorIdx]);
+        return segments;
+      });
 
-        const isTopFloor = floorIdx === maxFloorIndex;
+      return {
+        floorIdx,
+        elevation,
+        floorHeight,
+        effectiveWalls,
+        wallSegments,
+        rooms: floor.rooms,
+        doors: floor.doors,
+        windows: floor.windows,
+        staircases: floor.staircases,
+        roof: floor.roof,
+        isTopFloor: floorIdx === maxFloorIndex
+      };
+    });
+  }, [building]);
 
+  return (
+    <group name="building-root">
+      {floorRenderData.map((floor) => {
         return (
-          <group key={`floor-${floorIdx}`} name={`floor-${floorIdx}`} position={[0, yOffset, 0]}>
-            {/* ── Structural Base Slab & Ceiling Separators ─────────────────────── */}
-            <FloorSlabMesh rooms={floor.rooms} opacity={opacity} />
+          <group key={`floor-${floor.floorIdx}`} name={`floor-${floor.floorIdx}`} position={[0, floor.elevation, 0]}>
+            {/* ── Floor Structural Base Slab ─────────────────────────────────────── */}
+            <FloorSlabMesh rooms={floor.rooms} />
 
-            {/* ── Room Floor Surfaces & Materials ──────────────────────────── */}
+            {/* ── Room Surfaces ─────────────────────────────────────────────────── */}
             {floor.rooms.map((room) => (
               <RoomMesh
                 key={`room-${room.id}`}
                 room={room}
-                opacity={opacity}
-                depthWrite={depthWrite}
                 isSelected={selectedObjectId === room.id}
                 onClick={(e) => { e.stopPropagation(); selectObject(room.id, 'room'); }}
               />
             ))}
 
-            {/* ── Solid Architectural Wall Meshes ──────────────────────────── */}
-            {layerVisibility.walls && effectiveWalls.map((wall) => (
-              <WallMesh
-                key={`wall-${wall.id}`}
-                wall={wall}
-                opacity={opacity}
-                depthWrite={depthWrite}
-                isSelected={selectedObjectId === wall.id}
-                onClick={(e) => { e.stopPropagation(); selectObject(wall.id, 'wall'); }}
+            {/* ── Solid Architectural Wall Meshes with Real Door/Window Openings ── */}
+            {layerVisibility.walls && floor.wallSegments.map((seg) => (
+              <WallSegmentMesh
+                key={seg.id}
+                segment={seg}
+                isSelected={selectedObjectId === seg.wallId}
+                onClick={(e) => { e.stopPropagation(); selectObject(seg.wallId, 'wall'); }}
               />
             ))}
 
-            {/* ── Doors with Frame & Panel Detailing ───────────────────────── */}
+            {/* ── Doors with Frames & Handles ───────────────────────────────────── */}
             {layerVisibility.doors && floor.doors.map((door) => (
               <DoorMesh
                 key={`door-${door.id}`}
                 door={door}
-                walls={effectiveWalls}
-                opacity={opacity}
+                walls={floor.effectiveWalls}
                 isSelected={selectedObjectId === door.id}
                 onClick={(e) => { e.stopPropagation(); selectObject(door.id, 'door'); }}
               />
             ))}
 
-            {/* ── Windows with Glass & Aluminum Mullions ──────────────────── */}
+            {/* ── Windows with Glass Panes & Mullions ───────────────────────────── */}
             {layerVisibility.windows && floor.windows.map((win) => (
               <WindowMesh
                 key={`win-${win.id}`}
                 windowObj={win}
-                walls={effectiveWalls}
-                opacity={opacity}
+                walls={floor.effectiveWalls}
                 isSelected={selectedObjectId === win.id}
                 onClick={(e) => { e.stopPropagation(); selectObject(win.id, 'window'); }}
               />
             ))}
 
-            {/* ── Multi-Floor Staircases with Steps & Balustrade Handrails ───── */}
+            {/* ── Parametric Staircases ─────────────────────────────────────────── */}
             {floor.staircases.map((stair) => (
               <StaircaseMesh
                 key={`stair-${stair.id}`}
                 stair={stair}
+                floorElevation={floor.elevation}
+                floorHeight={floor.floorHeight}
                 isSelected={selectedObjectId === stair.id}
                 onClick={(e) => { e.stopPropagation(); selectObject(stair.id, 'staircase'); }}
               />
             ))}
 
-            {/* ── Realistic Procedural Furniture & Architectural Objects ─────── */}
+            {/* ── Procedural Furniture Objects ──────────────────────────────────── */}
             {layerVisibility.furniture && floor.rooms.flatMap((room) =>
               room.furniture.map((furn) => (
                 <FurnitureProcedural
@@ -141,13 +338,12 @@ export const BuildingRenderer: React.FC = () => {
               ))
             )}
 
-            {/* ── Top Floor Roof Structure (Gable / Hip / Flat with Parapet) ─── */}
-            {layerVisibility.roof && isTopFloor && (
+            {/* ── Top Floor Roof Structure ──────────────────────────────────────── */}
+            {layerVisibility.roof && floor.isTopFloor && (
               <RoofMesh
                 roof={floor.roof}
                 rooms={floor.rooms}
-                walls={effectiveWalls}
-                wallHeight={3.0}
+                wallHeight={floor.floorHeight}
               />
             )}
           </group>
@@ -159,7 +355,7 @@ export const BuildingRenderer: React.FC = () => {
 
 // ── FloorSlabMesh ─────────────────────────────────────────────────────────────
 
-const FloorSlabMesh: React.FC<{ rooms: Room[]; opacity: number }> = ({ rooms, opacity }) => {
+const FloorSlabMesh: React.FC<{ rooms: Room[] }> = ({ rooms }) => {
   const slabData = useMemo(() => {
     if (rooms.length === 0) return null;
     const allPts = rooms.flatMap(r => r.polygon || []);
@@ -184,57 +380,44 @@ const FloorSlabMesh: React.FC<{ rooms: Room[]; opacity: number }> = ({ rooms, op
     <group position={[slabData.cx, -0.1, slabData.cz]}>
       <mesh receiveShadow castShadow position={[0, 0, 0]}>
         <boxGeometry args={[slabData.w, 0.2, slabData.d]} />
-        <meshStandardMaterial color="#1e293b" roughness={0.8} transparent opacity={opacity} />
+        <meshStandardMaterial color="#1e293b" roughness={0.8} transparent={false} />
       </mesh>
     </group>
   );
 };
 
-// ── WallMesh ──────────────────────────────────────────────────────────────────
+// ── WallSegmentMesh ───────────────────────────────────────────────────────────
 
-const WallMesh: React.FC<{
-  wall: Wall;
-  opacity: number;
-  depthWrite: boolean;
+const WallSegmentMesh: React.FC<{
+  segment: {
+    id: string;
+    wallId: string;
+    midX: number;
+    midZ: number;
+    length: number;
+    height: number;
+    yOffset: number;
+    thickness: number;
+    angle: number;
+    isExterior: boolean;
+  };
   isSelected: boolean;
   onClick: (e: { stopPropagation: () => void }) => void;
-}> = ({ wall, opacity, depthWrite, isSelected, onClick }) => {
-  const sp = wall.startPoint;
-  const ep = wall.endPoint;
-  if (!sp || !ep || sp.length < 2 || ep.length < 2) return null;
-
-  const thickness = wall.thickness ?? 0.2;
-  const height    = wall.height    ?? 3.0;
-
-  const dx = ep[0] - sp[0];
-  const dz = ep[1] - sp[1];
-  const length = Math.sqrt(dx * dx + dz * dz);
-  if (length < 0.01) return null;
-
-  const angle = Math.atan2(dz, dx);
-  const midX  = (sp[0] + ep[0]) / 2;
-  const midZ  = (sp[1] + ep[1]) / 2;
-
-  const wallColor = isSelected ? '#6366f1' : wall.isExterior ? '#334155' : '#475569';
+}> = ({ segment, isSelected, onClick }) => {
+  const wallColor = isSelected ? '#6366f1' : segment.isExterior ? '#334155' : '#475569';
 
   return (
-    <group position={[midX, height / 2, midZ]} rotation={[0, -angle, 0]} onClick={onClick}>
+    <group position={[segment.midX, segment.yOffset, segment.midZ]} rotation={[0, -segment.angle, 0]} onClick={onClick}>
       <mesh castShadow receiveShadow>
-        <boxGeometry args={[length, height, thickness]} />
+        <boxGeometry args={[segment.length, segment.height, segment.thickness]} />
         <meshStandardMaterial
           color={wallColor}
           roughness={0.75}
           metalness={0.1}
-          transparent={opacity < 1}
-          opacity={opacity}
-          depthWrite={depthWrite}
+          transparent={false}
           emissive={isSelected ? new THREE.Color('#4f46e5') : new THREE.Color('#000000')}
           emissiveIntensity={isSelected ? 0.4 : 0}
         />
-      </mesh>
-      <mesh position={[0, -height / 2 + 0.05, 0]}>
-        <boxGeometry args={[length, 0.1, thickness + 0.02]} />
-        <meshStandardMaterial color="#1e293b" roughness={0.5} />
       </mesh>
     </group>
   );
@@ -245,10 +428,9 @@ const WallMesh: React.FC<{
 const DoorMesh: React.FC<{
   door: Door;
   walls: Wall[];
-  opacity: number;
   isSelected: boolean;
   onClick: (e: { stopPropagation: () => void }) => void;
-}> = ({ door, walls, opacity, isSelected, onClick }) => {
+}> = ({ door, walls, isSelected, onClick }) => {
   const wall = walls.find(w => w.id === door.wallId) || walls[0];
   if (!wall) return null;
 
@@ -258,20 +440,31 @@ const DoorMesh: React.FC<{
   const dz = ep[1] - sp[1];
   const angle = Math.atan2(dz, dx);
 
-  const pos = Array.isArray(door.position) ? door.position : [sp[0] + 0.5 * dx, sp[1] + 0.5 * dz];
-  const px = pos[0];
-  const pz = pos[1];
+  let px = sp[0] + 0.5 * dx;
+  let pz = sp[1] + 0.5 * dz;
+
+  if (typeof door.position === 'number') {
+    const t = Math.max(0.05, Math.min(0.95, door.position));
+    px = sp[0] + t * dx;
+    pz = sp[1] + t * dz;
+  } else if (Array.isArray(door.position)) {
+    px = door.position[0];
+    pz = door.position[1];
+  }
 
   return (
     <group position={[px, door.height / 2, pz]} rotation={[0, -angle, 0]} onClick={onClick}>
+      {/* Outer Wooden Frame */}
       <mesh castShadow>
-        <boxGeometry args={[door.width + 0.1, door.height + 0.08, 0.24]} />
-        <meshStandardMaterial color={isSelected ? '#6366f1' : '#1e293b'} roughness={0.4} transparent opacity={opacity} />
+        <boxGeometry args={[door.width + 0.08, door.height + 0.06, 0.22]} />
+        <meshStandardMaterial color={isSelected ? '#6366f1' : '#1e293b'} roughness={0.4} transparent={false} />
       </mesh>
+      {/* Wooden Door Panel */}
       <mesh position={[0, 0, 0]} castShadow>
         <boxGeometry args={[door.width - 0.04, door.height - 0.04, 0.06]} />
-        <meshStandardMaterial color="#9a3412" roughness={0.5} transparent opacity={opacity} />
+        <meshStandardMaterial color="#9a3412" roughness={0.5} transparent={false} />
       </mesh>
+      {/* Metallic Door Handle Knob */}
       <mesh position={[door.width / 2 - 0.12, 0, 0.05]} castShadow>
         <sphereGeometry args={[0.04, 12, 12]} />
         <meshStandardMaterial color="#f59e0b" metalness={0.9} roughness={0.2} />
@@ -285,10 +478,9 @@ const DoorMesh: React.FC<{
 const WindowMesh: React.FC<{
   windowObj: Window;
   walls: Wall[];
-  opacity: number;
   isSelected: boolean;
   onClick: (e: { stopPropagation: () => void }) => void;
-}> = ({ windowObj, walls, opacity, isSelected, onClick }) => {
+}> = ({ windowObj, walls, isSelected, onClick }) => {
   const wall = walls.find(w => w.id === windowObj.wallId) || walls[0];
   if (!wall) return null;
 
@@ -298,21 +490,34 @@ const WindowMesh: React.FC<{
   const dz = ep[1] - sp[1];
   const angle = Math.atan2(dz, dx);
 
-  const pos = Array.isArray(windowObj.position) ? windowObj.position : [sp[0] + 0.5 * dx, sp[1] + 0.5 * dz];
-  const px = pos[0];
-  const pz = pos[1];
-  const py = windowObj.sillHeight + windowObj.height / 2;
+  let px = sp[0] + 0.5 * dx;
+  let pz = sp[1] + 0.5 * dz;
+
+  if (typeof windowObj.position === 'number') {
+    const t = Math.max(0.05, Math.min(0.95, windowObj.position));
+    px = sp[0] + t * dx;
+    pz = sp[1] + t * dz;
+  } else if (Array.isArray(windowObj.position)) {
+    px = windowObj.position[0];
+    pz = windowObj.position[1];
+  }
+
+  const sillH = windowObj.sillHeight ?? windowObj.sill ?? 0.9;
+  const py = sillH + windowObj.height / 2;
 
   return (
     <group position={[px, py, pz]} rotation={[0, -angle, 0]} onClick={onClick}>
+      {/* Aluminum Window Frame */}
       <mesh castShadow>
         <boxGeometry args={[windowObj.width + 0.08, windowObj.height + 0.08, 0.22]} />
-        <meshStandardMaterial color={isSelected ? '#6366f1' : '#0f172a'} roughness={0.3} metalness={0.5} transparent opacity={opacity} />
+        <meshStandardMaterial color={isSelected ? '#6366f1' : '#0f172a'} roughness={0.3} metalness={0.5} transparent={false} />
       </mesh>
+      {/* Translucent Glass Pane */}
       <mesh>
         <boxGeometry args={[windowObj.width - 0.04, windowObj.height - 0.04, 0.03]} />
         <meshStandardMaterial color="#38bdf8" transparent opacity={0.45} roughness={0.1} metalness={0.8} />
       </mesh>
+      {/* Window Mullion Divider */}
       <mesh position={[0, 0, 0]}>
         <boxGeometry args={[0.03, windowObj.height - 0.04, 0.04]} />
         <meshStandardMaterial color="#0f172a" roughness={0.3} />
@@ -325,13 +530,15 @@ const WindowMesh: React.FC<{
 
 const StaircaseMesh: React.FC<{
   stair: Staircase;
+  floorElevation: number;
+  floorHeight: number;
   isSelected: boolean;
   onClick: (e: { stopPropagation: () => void }) => void;
-}> = ({ stair, isSelected, onClick }) => {
+}> = ({ stair, floorHeight, isSelected, onClick }) => {
   const px = stair.position[0];
   const pz = stair.position[1];
+  const totalH = floorHeight ?? 3.0;
   const steps = 14;
-  const totalH = 3.0;
   const stepH = totalH / steps;
   const stepL = stair.length / steps;
   const stepW = stair.width;
@@ -345,9 +552,11 @@ const StaircaseMesh: React.FC<{
             color={isSelected ? '#6366f1' : '#475569'}
             roughness={0.6}
             metalness={0.2}
+            transparent={false}
           />
         </mesh>
       ))}
+      {/* Handrail Balustrade */}
       <mesh position={[0.05, totalH / 2 + 0.4, stair.length / 2]} rotation={[Math.atan2(totalH, stair.length), 0, 0]}>
         <cylinderGeometry args={[0.03, 0.03, Math.sqrt(totalH * totalH + stair.length * stair.length), 8]} />
         <meshStandardMaterial color="#f59e0b" metalness={0.8} roughness={0.2} />
@@ -361,7 +570,6 @@ const StaircaseMesh: React.FC<{
 const RoofMesh: React.FC<{
   roof?: Roof;
   rooms: Room[];
-  walls: Wall[];
   wallHeight: number;
 }> = ({ roof, rooms, wallHeight }) => {
   const roofData = useMemo(() => {
@@ -392,24 +600,28 @@ const RoofMesh: React.FC<{
     <group position={[roofData.cx, wallHeight, roofData.cz]}>
       {roofData.type === 'flat' ? (
         <group>
+          {/* Terrace Slab */}
           <mesh position={[0, 0.1, 0]} castShadow receiveShadow>
             <boxGeometry args={[roofData.w, 0.2, roofData.d]} />
-            <meshStandardMaterial color="#334155" roughness={0.8} />
+            <meshStandardMaterial color="#334155" roughness={0.8} transparent={false} />
           </mesh>
+          {/* Parapet Rim Wall */}
           <mesh position={[0, 0.45, 0]}>
             <boxGeometry args={[roofData.w, 0.5, roofData.d]} />
-            <meshStandardMaterial color="#475569" roughness={0.7} />
+            <meshStandardMaterial color="#475569" roughness={0.7} transparent={false} />
           </mesh>
         </group>
       ) : (
         <group>
+          {/* Pitched Roof Pyramid Structure */}
           <mesh position={[0, roofData.h / 2, 0]} rotation={[0, Math.PI / 4, 0]} castShadow receiveShadow>
             <coneGeometry args={[Math.max(roofData.w, roofData.d) * 0.65, roofData.h, 4]} />
-            <meshStandardMaterial color={roofData.color} roughness={0.5} metalness={0.15} />
+            <meshStandardMaterial color={roofData.color} roughness={0.5} metalness={0.15} transparent={false} />
           </mesh>
+          {/* Eave Underhang Base */}
           <mesh position={[0, 0.05, 0]} castShadow>
             <boxGeometry args={[roofData.w, 0.1, roofData.d]} />
-            <meshStandardMaterial color="#1e293b" roughness={0.6} />
+            <meshStandardMaterial color="#1e293b" roughness={0.6} transparent={false} />
           </mesh>
         </group>
       )}
@@ -421,11 +633,9 @@ const RoofMesh: React.FC<{
 
 const RoomMesh: React.FC<{
   room: Room;
-  opacity: number;
-  depthWrite: boolean;
   isSelected: boolean;
   onClick: (e: { stopPropagation: () => void }) => void;
-}> = ({ room, opacity, depthWrite, isSelected, onClick }) => {
+}> = ({ room, isSelected, onClick }) => {
   const geometry = useMemo(() => {
     if (!room.polygon || room.polygon.length < 3) return null;
     const shape = new THREE.Shape();
@@ -453,9 +663,7 @@ const RoomMesh: React.FC<{
       <meshStandardMaterial
         color={isSelected ? '#818cf8' : colorHex}
         roughness={0.9}
-        transparent
-        opacity={opacity * (isSelected ? 0.95 : 0.85)}
-        depthWrite={depthWrite}
+        transparent={false}
       />
     </mesh>
   );
@@ -488,23 +696,23 @@ const FurnitureProcedural: React.FC<{
         <group position={[0, dims.h / 2, 0]}>
           <mesh castShadow position={[0, -dims.h * 0.3, 0]}>
             <boxGeometry args={[dims.w, dims.h * 0.4, dims.d]} />
-            <meshStandardMaterial color="#451a03" roughness={0.6} />
+            <meshStandardMaterial color="#451a03" roughness={0.6} transparent={false} />
           </mesh>
           <mesh castShadow position={[0, dims.h * 0.2, -dims.d / 2 + 0.05]}>
             <boxGeometry args={[dims.w, dims.h * 0.8, 0.1]} />
-            <meshStandardMaterial color={isSelected ? '#6366f1' : '#312e81'} roughness={0.4} />
+            <meshStandardMaterial color={isSelected ? '#6366f1' : '#312e81'} roughness={0.4} transparent={false} />
           </mesh>
           <mesh castShadow position={[0, 0.05, 0.05]}>
             <boxGeometry args={[dims.w - 0.08, dims.h * 0.35, dims.d - 0.15]} />
-            <meshStandardMaterial color="#f8fafc" roughness={0.8} />
+            <meshStandardMaterial color="#f8fafc" roughness={0.8} transparent={false} />
           </mesh>
           <mesh castShadow position={[-dims.w * 0.25, dims.h * 0.25, -dims.d * 0.3]}>
             <boxGeometry args={[dims.w * 0.4, 0.1, 0.35]} />
-            <meshStandardMaterial color="#e0e7ff" />
+            <meshStandardMaterial color="#e0e7ff" transparent={false} />
           </mesh>
           <mesh castShadow position={[dims.w * 0.25, dims.h * 0.25, -dims.d * 0.3]}>
             <boxGeometry args={[dims.w * 0.4, 0.1, 0.35]} />
-            <meshStandardMaterial color="#e0e7ff" />
+            <meshStandardMaterial color="#e0e7ff" transparent={false} />
           </mesh>
         </group>
       )}
@@ -514,19 +722,19 @@ const FurnitureProcedural: React.FC<{
         <group position={[0, dims.h / 2, 0]}>
           <mesh castShadow position={[0, -0.1, 0]}>
             <boxGeometry args={[dims.w, dims.h * 0.5, dims.d]} />
-            <meshStandardMaterial color={isSelected ? '#6366f1' : '#4c1d95'} roughness={0.7} />
+            <meshStandardMaterial color={isSelected ? '#6366f1' : '#4c1d95'} roughness={0.7} transparent={false} />
           </mesh>
           <mesh castShadow position={[0, dims.h * 0.2, -dims.d / 2 + 0.1]}>
             <boxGeometry args={[dims.w, dims.h * 0.6, 0.2]} />
-            <meshStandardMaterial color="#5b21b6" roughness={0.6} />
+            <meshStandardMaterial color="#5b21b6" roughness={0.6} transparent={false} />
           </mesh>
           <mesh castShadow position={[-dims.w / 2 + 0.1, 0.05, 0]}>
             <boxGeometry args={[0.2, dims.h * 0.5, dims.d]} />
-            <meshStandardMaterial color="#3b0764" />
+            <meshStandardMaterial color="#3b0764" transparent={false} />
           </mesh>
           <mesh castShadow position={[dims.w / 2 - 0.1, 0.05, 0]}>
             <boxGeometry args={[0.2, dims.h * 0.5, dims.d]} />
-            <meshStandardMaterial color="#3b0764" />
+            <meshStandardMaterial color="#3b0764" transparent={false} />
           </mesh>
         </group>
       )}
@@ -538,26 +746,26 @@ const FurnitureProcedural: React.FC<{
             <group>
               <mesh castShadow>
                 <boxGeometry args={[dims.w, dims.h, dims.d]} />
-                <meshStandardMaterial color={isSelected ? '#6366f1' : '#64748b'} metalness={0.8} roughness={0.2} />
+                <meshStandardMaterial color={isSelected ? '#6366f1' : '#64748b'} metalness={0.8} roughness={0.2} transparent={false} />
               </mesh>
               <mesh position={[0.02, 0.2, dims.d / 2 + 0.02]}>
                 <boxGeometry args={[0.04, 0.6, 0.03]} />
-                <meshStandardMaterial color="#cbd5e1" metalness={0.9} />
+                <meshStandardMaterial color="#cbd5e1" metalness={0.9} transparent={false} />
               </mesh>
             </group>
           ) : (
             <group>
               <mesh castShadow>
                 <boxGeometry args={[dims.w, dims.h * 0.9, dims.d]} />
-                <meshStandardMaterial color="#0f172a" roughness={0.5} />
+                <meshStandardMaterial color="#0f172a" roughness={0.5} transparent={false} />
               </mesh>
               <mesh position={[0, dims.h * 0.45 + 0.02, 0]} castShadow>
                 <boxGeometry args={[dims.w + 0.04, 0.05, dims.d + 0.04]} />
-                <meshStandardMaterial color="#334155" roughness={0.2} metalness={0.3} />
+                <meshStandardMaterial color="#334155" roughness={0.2} metalness={0.3} transparent={false} />
               </mesh>
               <mesh position={[0, dims.h * 0.45 + 0.03, 0]}>
                 <boxGeometry args={[0.5, 0.02, 0.4]} />
-                <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
+                <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} transparent={false} />
               </mesh>
             </group>
           )}
@@ -571,18 +779,18 @@ const FurnitureProcedural: React.FC<{
             <group>
               <mesh castShadow position={[0, -0.1, 0.1]}>
                 <boxGeometry args={[0.38, 0.4, 0.5]} />
-                <meshStandardMaterial color="#f8fafc" roughness={0.2} />
+                <meshStandardMaterial color="#f8fafc" roughness={0.2} transparent={false} />
               </mesh>
               <mesh castShadow position={[0, 0.15, -0.15]}>
                 <boxGeometry args={[0.4, 0.5, 0.22]} />
-                <meshStandardMaterial color="#f8fafc" roughness={0.2} />
+                <meshStandardMaterial color="#f8fafc" roughness={0.2} transparent={false} />
               </mesh>
             </group>
           )}
           {furniture.type === 'bathtub' && (
             <mesh castShadow>
               <boxGeometry args={[dims.w, dims.h, dims.d]} />
-              <meshStandardMaterial color="#e0f2fe" roughness={0.2} metalness={0.2} />
+              <meshStandardMaterial color="#e0f2fe" roughness={0.2} metalness={0.2} transparent={false} />
             </mesh>
           )}
           {furniture.type === 'shower' && (
@@ -596,7 +804,7 @@ const FurnitureProcedural: React.FC<{
           {furniture.type === 'sink' && (
             <mesh castShadow position={[0, 0.2, 0]}>
               <boxGeometry args={[dims.w, 0.25, dims.d]} />
-              <meshStandardMaterial color="#f8fafc" roughness={0.2} />
+              <meshStandardMaterial color="#f8fafc" roughness={0.2} transparent={false} />
             </mesh>
           )}
         </group>
@@ -610,6 +818,7 @@ const FurnitureProcedural: React.FC<{
             color={isSelected ? '#6366f1' : '#d97706'}
             roughness={0.5}
             metalness={0.2}
+            transparent={false}
             emissive={isSelected ? new THREE.Color('#4f46e5') : new THREE.Color('#000000')}
             emissiveIntensity={isSelected ? 0.4 : 0}
           />
