@@ -1,0 +1,82 @@
+{
+  "buildingId": "e4f5a6b7-c8d9-4e4f-9a5b-6c7d8e9f0a1b",
+  "buildingType": "shop",
+  "name": "Small Retail Shop",
+  "units": "metric",
+  "entrance": {
+    "floorIndex": 0,
+    "wallId": "w-shop-s",
+    "doorId": "d-shop-ent",
+    "facing": "south"
+  },
+  "metadata": {
+    "createdVia": "template",
+    "description": "Retail shop unit layout",
+    "style": "commercial"
+  },
+  "floors": [
+    {
+      "floorIndex": 0,
+      "label": "Ground Floor",
+      "elevation": 0,
+      "floorHeight": 3.5,
+      "rooms": [
+        {
+          "roomId": "r-shop-main",
+          "type": "living",
+          "label": "Main Shop Floor",
+          "polygon": [[0,0], [8,0], [8,6], [0,6]],
+          "areaSqFt": 516,
+          "connections": [
+            { "toRoomId": "r-shop-storage", "via": "door", "doorId": "d-shop-stor" }
+          ],
+          "furniture": [
+            { "furnitureId": "f-shop-shelf1", "type": "bookshelf", "position": [1.0, 5.5, 0], "rotation": [0,0,0], "scale": [1,1,1], "boundingBox": {"w":2, "d":0.4, "h":2.0} },
+            { "furnitureId": "f-shop-counter", "type": "kitchen_counter", "position": [6.0, 2.0, 0], "rotation": [0,90,0], "scale": [1,1,1], "boundingBox": {"w":2, "d":0.6, "h":1.0} }
+          ]
+        },
+        {
+          "roomId": "r-shop-storage",
+          "type": "storeroom",
+          "label": "Storage Room",
+          "polygon": [[8,0], [11,0], [11,3], [8,3]],
+          "areaSqFt": 96,
+          "connections": [
+            { "toRoomId": "r-shop-main", "via": "door", "doorId": "d-shop-stor" }
+          ],
+          "furniture": []
+        },
+        {
+          "roomId": "r-shop-office",
+          "type": "study",
+          "label": "Office",
+          "polygon": [[8,3], [11,3], [11,5], [8,5]],
+          "areaSqFt": 64,
+          "connections": [],
+          "furniture": [
+            { "furnitureId": "f-shop-desk", "type": "desk", "position": [9.5, 4.0, 0], "rotation": [0,0,0], "scale": [1,1,1], "boundingBox": {"w":1.5, "d":0.8, "h":0.75} },
+            { "furnitureId": "f-shop-chair", "type": "office_chair", "position": [9.5, 4.5, 0], "rotation": [0,0,0], "scale": [1,1,1], "boundingBox": {"w":0.6, "d":0.6, "h":1.0} }
+          ]
+        },
+        {
+          "roomId": "r-shop-bath",
+          "type": "bathroom",
+          "label": "Bathroom",
+          "polygon": [[8,5], [10,5], [10,7], [8,7]],
+          "areaSqFt": 43,
+          "connections": [],
+          "furniture": []
+        }
+      ],
+      "walls": [
+        { "wallId": "w-shop-s", "start": [0,0], "end": [8,0], "thickness": 0.2, "height": 3.5, "is_load_bearing": true },
+        { "wallId": "w-shop-e", "start": [8,0], "end": [8,6], "thickness": 0.2, "height": 3.5, "is_load_bearing": false }
+      ],
+      "doors": [
+        { "doorId": "d-shop-ent", "wallId": "w-shop-s", "position": 4.0, "width": 1.2, "height": 2.2, "swing": "in-right", "is_entrance": true },
+        { "doorId": "d-shop-stor", "wallId": "w-shop-e", "position": 1.5, "width": 0.9, "height": 2.1, "swing": "in-left", "is_entrance": false }
+      ],
+      "windows": []
+    }
+  ]
+}

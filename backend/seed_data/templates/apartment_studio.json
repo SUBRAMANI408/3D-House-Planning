@@ -1,0 +1,79 @@
+{
+  "buildingId": "c2d3e4f5-a6b7-4c2d-8e3f-4a5b6c7d8e9f",
+  "buildingType": "apartment",
+  "name": "Studio Apartment",
+  "units": "metric",
+  "entrance": {
+    "floorIndex": 0,
+    "wallId": "w-apt-s",
+    "doorId": "d-entrance-apt",
+    "facing": "south"
+  },
+  "metadata": {
+    "createdVia": "template",
+    "description": "Open plan studio apartment layout",
+    "style": "minimalist"
+  },
+  "floors": [
+    {
+      "floorIndex": 0,
+      "label": "Main Floor",
+      "elevation": 0,
+      "floorHeight": 3.0,
+      "rooms": [
+        {
+          "roomId": "r-apt-living",
+          "type": "living",
+          "label": "Living/Sleeping Area",
+          "polygon": [[0,0], [5,0], [5,5], [0,5]],
+          "areaSqFt": 269,
+          "connections": [
+            { "toRoomId": "r-apt-kitchen", "via": "opening" },
+            { "toRoomId": "r-apt-bath", "via": "door", "doorId": "d-apt-bath" }
+          ],
+          "furniture": [
+            { "furnitureId": "f-apt-bed", "type": "bed_queen", "position": [4.0, 4.0, 0], "rotation": [0,180,0], "scale": [1,1,1], "boundingBox": {"w":1.6, "d":2.0, "h":1.0} },
+            { "furnitureId": "f-apt-sofa", "type": "sofa", "position": [2.5, 2.0, 0], "rotation": [0,0,0], "scale": [1,1,1], "boundingBox": {"w":2, "d":1, "h":0.8} },
+            { "furnitureId": "f-apt-tv", "type": "tv_unit", "position": [2.5, 0.2, 0], "rotation": [0,180,0], "scale": [1,1,1], "boundingBox": {"w":1.5, "d":0.4, "h":0.5} },
+            { "furnitureId": "f-apt-desk", "type": "desk", "position": [1.0, 4.0, 0], "rotation": [0,90,0], "scale": [1,1,1], "boundingBox": {"w":1.2, "d":0.6, "h":0.75} }
+          ]
+        },
+        {
+          "roomId": "r-apt-kitchen",
+          "type": "kitchen",
+          "label": "Kitchen Area",
+          "polygon": [[5,2], [8,2], [8,5], [5,5]],
+          "areaSqFt": 97,
+          "connections": [
+            { "toRoomId": "r-apt-living", "via": "opening" }
+          ],
+          "furniture": [
+            { "furnitureId": "f-apt-kit-c", "type": "kitchen_counter", "position": [7.5, 3.5, 0], "rotation": [0,90,0], "scale": [1,1,1], "boundingBox": {"w":2, "d":0.6, "h":0.9} }
+          ]
+        },
+        {
+          "roomId": "r-apt-bath",
+          "type": "bathroom",
+          "label": "Bathroom",
+          "polygon": [[5,0], [7,0], [7,2], [5,2]],
+          "areaSqFt": 43,
+          "connections": [
+            { "toRoomId": "r-apt-living", "via": "door", "doorId": "d-apt-bath" }
+          ],
+          "furniture": [
+            { "furnitureId": "f-apt-toilet", "type": "toilet", "position": [6.5, 1.5, 0], "rotation": [0,0,0], "scale": [1,1,1], "boundingBox": {"w":0.4, "d":0.7, "h":0.8} }
+          ]
+        }
+      ],
+      "walls": [
+        { "wallId": "w-apt-s", "start": [0,0], "end": [5,0], "thickness": 0.2, "height": 3.0, "is_load_bearing": true },
+        { "wallId": "w-apt-bath-w", "start": [5,0], "end": [5,2], "thickness": 0.2, "height": 3.0, "is_load_bearing": false }
+      ],
+      "doors": [
+        { "doorId": "d-entrance-apt", "wallId": "w-apt-s", "position": 1.0, "width": 0.9, "height": 2.1, "swing": "in-right", "is_entrance": true },
+        { "doorId": "d-apt-bath", "wallId": "w-apt-bath-w", "position": 1.0, "width": 0.8, "height": 2.1, "swing": "in-left", "is_entrance": false }
+      ],
+      "windows": []
+    }
+  ]
+}

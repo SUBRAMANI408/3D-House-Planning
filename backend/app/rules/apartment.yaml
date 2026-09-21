@@ -1,0 +1,53 @@
+building_type: apartment
+room_types:
+  - hall
+  - kitchen
+  - bedroom
+  - bathroom
+  - dining
+  - corridor
+  - living
+  - study
+  - balcony
+  - storeroom
+  - laundry
+min_room_areas_sqft:
+  hall: 50
+  kitchen: 40
+  bedroom: 80
+  bathroom: 25
+  dining: 60
+  corridor: 20
+  living: 100
+  study: 50
+  balcony: 20
+  storeroom: 15
+  laundry: 15
+adjacency_preferences:
+  kitchen:
+    must_be_adjacent_to: [living]
+    preferred_adjacent_to: [dining]
+  bedroom:
+    must_be_adjacent_to: [bathroom]
+    preferred_adjacent_to: [corridor]
+  living:
+    preferred_adjacent_to: [balcony, hall]
+furniture_catalog:
+  bedroom:
+    required: [bed_double]
+    optional: [wardrobe, desk, side_table]
+  bathroom:
+    required: [toilet, sink, shower]
+    optional: []
+  kitchen:
+    required: [kitchen_counter, sink, stove]
+    optional: [refrigerator]
+  living:
+    required: [sofa, tv_unit]
+    optional: [coffee_table, bookshelf]
+  dining:
+    required: [dining_table, dining_chair]
+default_floor_height_m: 2.8
+default_wall_thickness_m: 0.2
+min_corridor_width_m: 1.0
+min_door_clearance_m: 0.6

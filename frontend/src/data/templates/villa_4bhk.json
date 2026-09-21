@@ -1,0 +1,237 @@
+{
+  "buildingId": "villa_4bhk",
+  "buildingType": "house",
+  "name": "4 BHK Premium Villa",
+  "units": "metric",
+  "metadata": {
+    "createdVia": "template",
+    "description": "Luxurious 4-bedroom multi-floor villa with double garage, grand living hall, formal dining, master suite, balconies, and pitched roof.",
+    "style": "luxury"
+  },
+  "floors": [
+    {
+      "floorIndex": 0,
+      "label": "Ground Floor",
+      "elevation": 0,
+      "floorHeight": 3.2,
+      "rooms": [
+        {
+          "roomId": "r-v-gf-hall",
+          "type": "reception",
+          "label": "Grand Foyer",
+          "polygon": [[6,0], [10,0], [10,3], [6,3]],
+          "areaSqFt": 129.1,
+          "connections": [{"toRoomId": "r-v-gf-living", "via": "opening"}],
+          "furniture": []
+        },
+        {
+          "roomId": "r-v-gf-living",
+          "type": "living",
+          "label": "Grand Living Room",
+          "polygon": [[0,0], [6,0], [6,7], [0,7]],
+          "areaSqFt": 452.0,
+          "connections": [{"toRoomId": "r-v-gf-dining", "via": "opening"}],
+          "furniture": [
+            { "id": "f-v-liv-sofa", "type": "sofa_l", "position": [3.0, 0, 3.5], "rotation": [0, 0, 0] },
+            { "id": "f-v-liv-tv", "type": "tv_unit", "position": [5.5, 0, 3.5], "rotation": [0, 270, 0] },
+            { "id": "f-v-liv-table", "type": "coffee_table", "position": [3.0, 0, 2.5], "rotation": [0, 0, 0] }
+          ]
+        },
+        {
+          "roomId": "r-v-gf-dining",
+          "type": "dining",
+          "label": "Formal Dining",
+          "polygon": [[6,3], [11,3], [11,7], [6,7]],
+          "areaSqFt": 215.2,
+          "connections": [{"toRoomId": "r-v-gf-kitchen", "via": "opening"}],
+          "furniture": [
+            { "id": "f-v-din-table", "type": "dining_table", "position": [8.5, 0, 5.0], "rotation": [0, 0, 0] }
+          ]
+        },
+        {
+          "roomId": "r-v-gf-kitchen",
+          "type": "kitchen",
+          "label": "Gourmet Kitchen",
+          "polygon": [[11,3], [16,3], [16,7], [11,7]],
+          "areaSqFt": 215.2,
+          "connections": [],
+          "furniture": [
+            { "id": "f-v-kit-counter", "type": "kitchen_counter", "position": [13.5, 0, 6.4], "rotation": [0, 0, 0] },
+            { "id": "f-v-kit-island", "type": "kitchen_island", "position": [13.5, 0, 4.5], "rotation": [0, 0, 0] },
+            { "id": "f-v-kit-fridge", "type": "refrigerator", "position": [15.2, 0, 3.8], "rotation": [0, 270, 0] }
+          ]
+        },
+        {
+          "roomId": "r-v-gf-guest",
+          "type": "bedroom",
+          "label": "Guest Suite",
+          "polygon": [[0,7], [6,7], [6,12], [0,12]],
+          "areaSqFt": 322.9,
+          "connections": [],
+          "furniture": [
+            { "id": "f-v-guest-bed", "type": "bed_queen", "position": [3.0, 0, 9.5], "rotation": [0, 0, 0] },
+            { "id": "f-v-guest-ward", "type": "wardrobe", "position": [5.2, 0, 11.0], "rotation": [0, 270, 0] }
+          ]
+        },
+        {
+          "roomId": "r-v-gf-garage",
+          "type": "garage",
+          "label": "Double Garage",
+          "polygon": [[10,7], [16,7], [16,12], [10,12]],
+          "areaSqFt": 322.9,
+          "connections": [],
+          "furniture": []
+        }
+      ],
+      "walls": [
+        { "id": "w-v-ext-s1", "startPoint": [0,0], "endPoint": [10,0], "thickness": 0.25, "height": 3.2, "isExterior": true },
+        { "id": "w-v-ext-e1", "startPoint": [10,0], "endPoint": [10,3], "thickness": 0.25, "height": 3.2, "isExterior": true },
+        { "id": "w-v-ext-e2", "startPoint": [10,3], "endPoint": [16,3], "thickness": 0.25, "height": 3.2, "isExterior": true },
+        { "id": "w-v-ext-e3", "startPoint": [16,3], "endPoint": [16,12], "thickness": 0.25, "height": 3.2, "isExterior": true },
+        { "id": "w-v-ext-n1", "startPoint": [16,12], "endPoint": [0,12], "thickness": 0.25, "height": 3.2, "isExterior": true },
+        { "id": "w-v-ext-w1", "startPoint": [0,12], "endPoint": [0,0], "thickness": 0.25, "height": 3.2, "isExterior": true },
+
+        { "id": "w-v-int-1", "startPoint": [6,0], "endPoint": [6,7], "thickness": 0.15, "height": 3.2, "isExterior": false },
+        { "id": "w-v-int-2", "startPoint": [11,3], "endPoint": [11,7], "thickness": 0.15, "height": 3.2, "isExterior": false },
+        { "id": "w-v-int-3", "startPoint": [0,7], "endPoint": [16,7], "thickness": 0.15, "height": 3.2, "isExterior": false },
+        { "id": "w-v-int-4", "startPoint": [10,7], "endPoint": [10,12], "thickness": 0.15, "height": 3.2, "isExterior": false }
+      ],
+      "doors": [
+        { "id": "d-v-main", "wallId": "w-v-ext-s1", "position": [8.0, 0], "width": 1.2, "height": 2.4, "swing": "double" },
+        { "id": "d-v-guest", "wallId": "w-v-int-3", "position": [3.0, 7.0], "width": 0.9, "height": 2.1, "swing": "in-left" },
+        { "id": "d-v-gar", "wallId": "w-v-int-3", "position": [13.0, 7.0], "width": 0.9, "height": 2.1, "swing": "in-right" }
+      ],
+      "windows": [
+        { "id": "win-v-liv", "wallId": "w-v-ext-s1", "position": [3.0, 0], "width": 2.0, "height": 1.6, "sillHeight": 0.7 },
+        { "id": "win-v-kit", "wallId": "w-v-ext-e2", "position": [16.0, 5.0], "width": 1.5, "height": 1.2, "sillHeight": 0.9 },
+        { "id": "win-v-guest", "wallId": "w-v-ext-w1", "position": [0, 9.5], "width": 1.6, "height": 1.4, "sillHeight": 0.8 }
+      ],
+      "staircases": [
+        {
+          "id": "stair-v-gf",
+          "startFloorIndex": 0,
+          "endFloorIndex": 1,
+          "position": [6.2, 0.5],
+          "width": 1.4,
+          "length": 2.8,
+          "type": "straight"
+        }
+      ]
+    },
+    {
+      "floorIndex": 1,
+      "label": "First Floor",
+      "elevation": 3.2,
+      "floorHeight": 3.2,
+      "rooms": [
+        {
+          "roomId": "r-v-ff-mbed",
+          "type": "bedroom",
+          "label": "Presidential Master Suite",
+          "polygon": [[0,0], [7,0], [7,7], [0,7]],
+          "areaSqFt": 527.4,
+          "connections": [{"toRoomId": "r-v-ff-mbath", "via": "door"}],
+          "furniture": [
+            { "id": "f-v-mbed-king", "type": "bed_king", "position": [3.5, 0, 3.5], "rotation": [0, 0, 0] },
+            { "id": "f-v-mbed-ward", "type": "wardrobe", "position": [6.2, 0, 5.5], "rotation": [0, 270, 0] }
+          ]
+        },
+        {
+          "roomId": "r-v-ff-mbath",
+          "type": "bathroom",
+          "label": "Luxury Ensuite Bath",
+          "polygon": [[7,0], [11,0], [11,4], [7,4]],
+          "areaSqFt": 172.2,
+          "connections": [{"toRoomId": "r-v-ff-mbed", "via": "door"}],
+          "furniture": [
+            { "id": "f-v-mbath-tub", "type": "bathtub", "position": [9.0, 0, 1.5], "rotation": [0, 0, 0] },
+            { "id": "f-v-mbath-toilet", "type": "toilet", "position": [10.2, 0, 3.0], "rotation": [0, 0, 0] }
+          ]
+        },
+        {
+          "roomId": "r-v-ff-bed2",
+          "type": "bedroom",
+          "label": "Bedroom 2 (Suite)",
+          "polygon": [[11,0], [16,0], [16,5], [11,5]],
+          "areaSqFt": 269.1,
+          "connections": [],
+          "furniture": [
+            { "id": "f-v-bed2-bed", "type": "bed_queen", "position": [13.5, 0, 2.5], "rotation": [0, 0, 0] }
+          ]
+        },
+        {
+          "roomId": "r-v-ff-lounge",
+          "type": "living",
+          "label": "Upper Lounge",
+          "polygon": [[7,4], [11,4], [11,8], [7,8]],
+          "areaSqFt": 172.2,
+          "connections": [],
+          "furniture": [
+            { "id": "f-v-lou-sofa", "type": "sofa", "position": [9.0, 0, 6.0], "rotation": [0, 180, 0] }
+          ]
+        },
+        {
+          "roomId": "r-v-ff-bed3",
+          "type": "bedroom",
+          "label": "Bedroom 3",
+          "polygon": [[0,7], [6,7], [6,12], [0,12]],
+          "areaSqFt": 322.9,
+          "connections": [],
+          "furniture": [
+            { "id": "f-v-bed3-bed", "type": "bed_queen", "position": [3.0, 0, 9.5], "rotation": [0, 0, 0] }
+          ]
+        },
+        {
+          "roomId": "r-v-ff-balcony",
+          "type": "balcony",
+          "label": "Terrace Balcony",
+          "polygon": [[11,5], [16,5], [16,10], [11,10]],
+          "areaSqFt": 269.1,
+          "connections": [],
+          "furniture": []
+        }
+      ],
+      "walls": [
+        { "id": "w-v-ff-s1", "startPoint": [0,0], "endPoint": [16,0], "thickness": 0.25, "height": 3.2, "isExterior": true },
+        { "id": "w-v-ff-e1", "startPoint": [16,0], "endPoint": [16,10], "thickness": 0.25, "height": 3.2, "isExterior": true },
+        { "id": "w-v-ff-n1", "startPoint": [16,10], "endPoint": [11,10], "thickness": 0.25, "height": 3.2, "isExterior": true },
+        { "id": "w-v-ff-n2", "startPoint": [11,10], "endPoint": [6,10], "thickness": 0.25, "height": 3.2, "isExterior": true },
+        { "id": "w-v-ff-n3", "startPoint": [6,10], "endPoint": [0,10], "thickness": 0.25, "height": 3.2, "isExterior": true },
+        { "id": "w-v-ff-w1", "startPoint": [0,10], "endPoint": [0,0], "thickness": 0.25, "height": 3.2, "isExterior": true },
+
+        { "id": "w-v-ff-int1", "startPoint": [7,0], "endPoint": [7,8], "thickness": 0.15, "height": 3.2, "isExterior": false },
+        { "id": "w-v-ff-int2", "startPoint": [11,0], "endPoint": [11,10], "thickness": 0.15, "height": 3.2, "isExterior": false },
+        { "id": "w-v-ff-int3", "startPoint": [7,4], "endPoint": [11,4], "thickness": 0.15, "height": 3.2, "isExterior": false },
+        { "id": "w-v-ff-int4", "startPoint": [0,7], "endPoint": [16,7], "thickness": 0.15, "height": 3.2, "isExterior": false }
+      ],
+      "doors": [
+        { "id": "d-v-ff-mbath", "wallId": "w-v-ff-int1", "position": [7.0, 2.0], "width": 0.8, "height": 2.0, "swing": "in-left" },
+        { "id": "d-v-ff-mbed", "wallId": "w-v-ff-int3", "position": [9.0, 4.0], "width": 0.9, "height": 2.1, "swing": "in-left" },
+        { "id": "d-v-ff-bed2", "wallId": "w-v-ff-int2", "position": [11.0, 2.5], "width": 0.9, "height": 2.1, "swing": "in-left" },
+        { "id": "d-v-ff-balc", "wallId": "w-v-ff-int4", "position": [13.5, 7.0], "width": 1.2, "height": 2.2, "swing": "sliding" }
+      ],
+      "windows": [
+        { "id": "win-v-ff-mbed", "wallId": "w-v-ff-s1", "position": [3.5, 0], "width": 2.0, "height": 1.5, "sillHeight": 0.8 },
+        { "id": "win-v-ff-bed2", "wallId": "w-v-ff-s1", "position": [13.5, 0], "width": 1.8, "height": 1.4, "sillHeight": 0.8 }
+      ],
+      "staircases": [
+        {
+          "id": "stair-v-ff",
+          "startFloorIndex": 0,
+          "endFloorIndex": 1,
+          "position": [6.2, 0.5],
+          "width": 1.4,
+          "length": 2.8,
+          "type": "straight"
+        }
+      ],
+      "roof": {
+        "id": "roof-villa",
+        "type": "pitched_hip",
+        "height": 2.5,
+        "overhang": 0.6,
+        "color": "#991b1b"
+      }
+    }
+  ]
+}

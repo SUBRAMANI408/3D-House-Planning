@@ -1,0 +1,31 @@
+building_type: shop
+room_types:
+  - shop_unit
+  - storage
+  - bathroom
+  - office
+min_room_areas_sqft:
+  shop_unit: 150
+  storage: 50
+  bathroom: 25
+  office: 50
+adjacency_preferences:
+  storage:
+    must_be_adjacent_to: [shop_unit]
+    preferred_adjacent_to: [office]
+  office:
+    preferred_adjacent_to: [shop_unit]
+furniture_catalog:
+  shop_unit:
+    required: [bookshelf, kitchen_counter]
+    optional: []
+  office:
+    required: [desk, office_chair]
+    optional: [bookshelf]
+  bathroom:
+    required: [toilet, sink]
+    optional: []
+default_floor_height_m: 3.5
+default_wall_thickness_m: 0.2
+min_corridor_width_m: 1.2
+min_door_clearance_m: 0.8

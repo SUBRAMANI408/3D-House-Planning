@@ -1,0 +1,66 @@
+{
+  "buildingId": "d3e4f5a6-b7c8-4d3e-8f4a-5b6c7d8e9f0a",
+  "buildingType": "house",
+  "name": "4 BHK Premium Villa",
+  "units": "metric",
+  "entrance": {
+    "floorIndex": 0,
+    "wallId": "w-villa-hall-s",
+    "doorId": "d-villa-ent",
+    "facing": "south"
+  },
+  "metadata": {
+    "createdVia": "template",
+    "description": "Premium 4 bedroom villa with garage",
+    "style": "luxury"
+  },
+  "floors": [
+    {
+      "floorIndex": 0,
+      "label": "Ground Floor",
+      "elevation": 0,
+      "floorHeight": 3.5,
+      "rooms": [
+        { "roomId": "r-v-gf-hall", "type": "hall", "label": "Grand Entrance Hall", "polygon": [[6,0], [10,0], [10,3], [6,3]], "areaSqFt": 129, "connections": [], "furniture": [] },
+        { "roomId": "r-v-gf-living", "type": "living", "label": "Large Living Room", "polygon": [[0,0], [6,0], [6,7], [0,7]], "areaSqFt": 376, "connections": [], "furniture": [] },
+        { "roomId": "r-v-gf-dining", "type": "dining", "label": "Formal Dining", "polygon": [[6,3], [11,3], [11,7], [6,7]], "areaSqFt": 215, "connections": [], "furniture": [] },
+        { "roomId": "r-v-gf-kitchen", "type": "kitchen", "label": "Kitchen", "polygon": [[11,3], [16,3], [16,7], [11,7]], "areaSqFt": 215, "connections": [], "furniture": [] },
+        { "roomId": "r-v-gf-guest", "type": "bedroom", "label": "Guest Bedroom", "polygon": [[0,7], [4,7], [4,11], [0,11]], "areaSqFt": 172, "connections": [], "furniture": [] },
+        { "roomId": "r-v-gf-garage", "type": "garage", "label": "Garage", "polygon": [[10,7], [16,7], [16,12], [10,12]], "areaSqFt": 322, "connections": [], "furniture": [] }
+      ],
+      "walls": [
+        { "wallId": "w-villa-hall-s", "start": [6,0], "end": [10,0], "thickness": 0.3, "height": 3.5, "is_load_bearing": true }
+      ],
+      "doors": [
+        { "doorId": "d-villa-ent", "wallId": "w-villa-hall-s", "position": 2.0, "width": 1.2, "height": 2.4, "swing": "in-right", "is_entrance": true }
+      ],
+      "windows": [],
+      "staircase": {
+        "footprint": [[10,0], [13,0], [13,3], [10,3]],
+        "connects_floors": [0,1]
+      }
+    },
+    {
+      "floorIndex": 1,
+      "label": "First Floor",
+      "elevation": 3.5,
+      "floorHeight": 3.5,
+      "rooms": [
+        { "roomId": "r-v-ff-mbed", "type": "bedroom", "label": "Master Suite", "polygon": [[0,0], [6,0], [6,5], [0,5]], "areaSqFt": 322, "connections": [], "furniture": [] },
+        { "roomId": "r-v-ff-mbed-wardrobe", "type": "storeroom", "label": "Walk-in Wardrobe", "polygon": [[0,5], [3,5], [3,7], [0,7]], "areaSqFt": 64, "connections": [], "furniture": [] },
+        { "roomId": "r-v-ff-mbed-bath", "type": "bathroom", "label": "Ensuite Bathroom", "polygon": [[3,5], [6,5], [6,8], [3,8]], "areaSqFt": 96, "connections": [], "furniture": [] },
+        { "roomId": "r-v-ff-bed2", "type": "bedroom", "label": "Bedroom 2", "polygon": [[6,0], [10.5,0], [10.5,4], [6,4]], "areaSqFt": 193, "connections": [], "furniture": [] },
+        { "roomId": "r-v-ff-bed3", "type": "bedroom", "label": "Bedroom 3", "polygon": [[10.5,0], [14.5,0], [14.5,4], [10.5,4]], "areaSqFt": 172, "connections": [], "furniture": [] },
+        { "roomId": "r-v-ff-lounge", "type": "living", "label": "Family Lounge", "polygon": [[6,4], [10,4], [10,8], [6,8]], "areaSqFt": 172, "connections": [], "furniture": [] },
+        { "roomId": "r-v-ff-bath", "type": "bathroom", "label": "Shared Bathroom", "polygon": [[10,4], [13,4], [13,6], [10,6]], "areaSqFt": 64, "connections": [], "furniture": [] }
+      ],
+      "walls": [],
+      "doors": [],
+      "windows": [],
+      "staircase": {
+        "footprint": [[10,0], [13,0], [13,3], [10,3]],
+        "connects_floors": [0,1]
+      }
+    }
+  ]
+}

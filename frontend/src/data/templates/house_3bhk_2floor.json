@@ -1,0 +1,253 @@
+{
+  "buildingId": "house_3bhk_2floor",
+  "buildingType": "house",
+  "name": "3 BHK 2 Floor House",
+  "units": "metric",
+  "metadata": {
+    "createdVia": "template",
+    "description": "Spacious 3-bedroom, 2-story residence with complete rooms on both floors, connecting staircase, full furniture sets, doors, windows, and pitched roof.",
+    "style": "contemporary"
+  },
+  "floors": [
+    {
+      "floorIndex": 0,
+      "label": "Ground Floor",
+      "elevation": 0,
+      "floorHeight": 3.0,
+      "rooms": [
+        {
+          "roomId": "r-gf-foyer",
+          "type": "corridor",
+          "label": "Entrance Foyer",
+          "polygon": [[0,0], [4,0], [4,3], [0,3]],
+          "areaSqFt": 129.1,
+          "connections": [{"toRoomId": "r-gf-living", "via": "opening"}],
+          "furniture": []
+        },
+        {
+          "roomId": "r-gf-living",
+          "type": "living",
+          "label": "Grand Living Room",
+          "polygon": [[4,0], [10,0], [10,5], [4,5]],
+          "areaSqFt": 322.9,
+          "connections": [
+            {"toRoomId": "r-gf-foyer", "via": "opening"},
+            {"toRoomId": "r-gf-dining", "via": "opening"},
+            {"toRoomId": "r-gf-bed1", "via": "door"}
+          ],
+          "furniture": [
+            { "id": "f-gf-liv-sofa", "type": "sofa_l", "position": [6.5, 0, 2.5], "rotation": [0, 0, 0] },
+            { "id": "f-gf-liv-table", "type": "coffee_table", "position": [6.5, 0, 1.8], "rotation": [0, 0, 0] },
+            { "id": "f-gf-liv-tv", "type": "tv_unit", "position": [9.5, 0, 2.5], "rotation": [0, 270, 0] }
+          ]
+        },
+        {
+          "roomId": "r-gf-bed1",
+          "type": "bedroom",
+          "label": "Guest Bedroom",
+          "polygon": [[10,0], [14,0], [14,5], [10,5]],
+          "areaSqFt": 215.2,
+          "connections": [{"toRoomId": "r-gf-living", "via": "door"}],
+          "furniture": [
+            { "id": "f-gf-bed1-bed", "type": "bed_queen", "position": [12.0, 0, 2.0], "rotation": [0, 0, 0] },
+            { "id": "f-gf-bed1-ward", "type": "wardrobe", "position": [13.2, 0, 4.0], "rotation": [0, 270, 0] }
+          ]
+        },
+        {
+          "roomId": "r-gf-kitchen",
+          "type": "kitchen",
+          "label": "Kitchen",
+          "polygon": [[0,3], [4,3], [4,9], [0,9]],
+          "areaSqFt": 258.3,
+          "connections": [{"toRoomId": "r-gf-dining", "via": "opening"}],
+          "furniture": [
+            { "id": "f-gf-kit-counter", "type": "kitchen_counter", "position": [2.0, 0, 8.4], "rotation": [0, 0, 0] },
+            { "id": "f-gf-kit-fridge", "type": "refrigerator", "position": [0.6, 0, 4.2], "rotation": [0, 90, 0] }
+          ]
+        },
+        {
+          "roomId": "r-gf-dining",
+          "type": "dining",
+          "label": "Dining Room",
+          "polygon": [[4,5], [9,5], [9,9], [4,9]],
+          "areaSqFt": 215.2,
+          "connections": [
+            {"toRoomId": "r-gf-living", "via": "opening"},
+            {"toRoomId": "r-gf-kitchen", "via": "opening"},
+            {"toRoomId": "r-gf-bath", "via": "door"}
+          ],
+          "furniture": [
+            { "id": "f-gf-din-table", "type": "dining_table", "position": [6.5, 0, 7.0], "rotation": [0, 0, 0] }
+          ]
+        },
+        {
+          "roomId": "r-gf-bath",
+          "type": "bathroom",
+          "label": "Powder Room",
+          "polygon": [[9,5], [12,5], [12,7], [9,7]],
+          "areaSqFt": 64.6,
+          "connections": [{"toRoomId": "r-gf-dining", "via": "door"}],
+          "furniture": [
+            { "id": "f-gf-bath-toilet", "type": "toilet", "position": [10.0, 0, 6.0], "rotation": [0, 0, 0] },
+            { "id": "f-gf-bath-sink", "type": "sink", "position": [11.2, 0, 6.0], "rotation": [0, 0, 0] }
+          ]
+        },
+        {
+          "roomId": "r-gf-stairhall",
+          "type": "corridor",
+          "label": "Staircase Hall",
+          "polygon": [[12,5], [14,5], [14,9], [12,9]],
+          "areaSqFt": 86.1,
+          "connections": [{"toRoomId": "r-gf-living", "via": "opening"}],
+          "furniture": []
+        }
+      ],
+      "walls": [
+        { "id": "w-gf-ext-s1", "startPoint": [0,0], "endPoint": [14,0], "thickness": 0.25, "height": 3.0, "isExterior": true },
+        { "id": "w-gf-ext-e1", "startPoint": [14,0], "endPoint": [14,9], "thickness": 0.25, "height": 3.0, "isExterior": true },
+        { "id": "w-gf-ext-n1", "startPoint": [14,9], "endPoint": [0,9], "thickness": 0.25, "height": 3.0, "isExterior": true },
+        { "id": "w-gf-ext-w1", "startPoint": [0,9], "endPoint": [0,0], "thickness": 0.25, "height": 3.0, "isExterior": true },
+
+        { "id": "w-gf-int-1", "startPoint": [4,0], "endPoint": [4,9], "thickness": 0.15, "height": 3.0, "isExterior": false },
+        { "id": "w-gf-int-2", "startPoint": [10,0], "endPoint": [10,5], "thickness": 0.15, "height": 3.0, "isExterior": false },
+        { "id": "w-gf-int-3", "startPoint": [4,5], "endPoint": [14,5], "thickness": 0.15, "height": 3.0, "isExterior": false },
+        { "id": "w-gf-int-4", "startPoint": [9,5], "endPoint": [9,9], "thickness": 0.15, "height": 3.0, "isExterior": false },
+        { "id": "w-gf-int-5", "startPoint": [12,5], "endPoint": [12,7], "thickness": 0.15, "height": 3.0, "isExterior": false }
+      ],
+      "doors": [
+        { "id": "d-gf-main", "wallId": "w-gf-ext-s1", "position": [2.0, 0], "width": 1.0, "height": 2.2, "swing": "in-left" },
+        { "id": "d-gf-bed1", "wallId": "w-gf-int-2", "position": [10.0, 2.5], "width": 0.9, "height": 2.1, "swing": "in-left" },
+        { "id": "d-gf-bath", "wallId": "w-gf-int-5", "position": [12.0, 6.0], "width": 0.8, "height": 2.0, "swing": "in-right" }
+      ],
+      "windows": [
+        { "id": "win-gf-liv", "wallId": "w-gf-ext-s1", "position": [7.0, 0], "width": 1.8, "height": 1.4, "sillHeight": 0.8 },
+        { "id": "win-gf-bed1", "wallId": "w-gf-ext-s1", "position": [12.0, 0], "width": 1.5, "height": 1.2, "sillHeight": 0.9 },
+        { "id": "win-gf-kit", "wallId": "w-gf-ext-w1", "position": [0, 6.0], "width": 1.2, "height": 1.0, "sillHeight": 1.1 }
+      ],
+      "staircases": [
+        {
+          "id": "stair-gf-ff",
+          "startFloorIndex": 0,
+          "endFloorIndex": 1,
+          "position": [12.3, 5.3],
+          "width": 1.2,
+          "length": 3.2,
+          "type": "straight"
+        }
+      ]
+    },
+    {
+      "floorIndex": 1,
+      "label": "First Floor",
+      "elevation": 3.0,
+      "floorHeight": 3.0,
+      "rooms": [
+        {
+          "roomId": "r-ff-mbed",
+          "type": "bedroom",
+          "label": "Master Suite",
+          "polygon": [[0,0], [6,0], [6,5], [0,5]],
+          "areaSqFt": 322.9,
+          "connections": [
+            {"toRoomId": "r-ff-mbath", "via": "door"},
+            {"toRoomId": "r-ff-lounge", "via": "door"}
+          ],
+          "furniture": [
+            { "id": "f-ff-mbed-king", "type": "bed_king", "position": [3.0, 0, 2.0], "rotation": [0, 0, 0] },
+            { "id": "f-ff-mbed-ward", "type": "wardrobe", "position": [5.2, 0, 4.0], "rotation": [0, 270, 0] }
+          ]
+        },
+        {
+          "roomId": "r-ff-mbath",
+          "type": "bathroom",
+          "label": "Ensuite Bathroom",
+          "polygon": [[6,0], [10,0], [10,3], [6,3]],
+          "areaSqFt": 129.1,
+          "connections": [{"toRoomId": "r-ff-mbed", "via": "door"}],
+          "furniture": [
+            { "id": "f-ff-mbath-tub", "type": "bathtub", "position": [8.0, 0, 1.5], "rotation": [0, 0, 0] },
+            { "id": "f-ff-mbath-toilet", "type": "toilet", "position": [9.2, 0, 2.2], "rotation": [0, 0, 0] }
+          ]
+        },
+        {
+          "roomId": "r-ff-lounge",
+          "type": "living",
+          "label": "Upper Lounge & Stair Landing",
+          "polygon": [[10,0], [14,0], [14,5], [10,5]],
+          "areaSqFt": 215.2,
+          "connections": [
+            {"toRoomId": "r-ff-mbed", "via": "door"},
+            {"toRoomId": "r-ff-balcony", "via": "door"}
+          ],
+          "furniture": [
+            { "id": "f-ff-lou-sofa", "type": "sofa", "position": [12.0, 0, 2.5], "rotation": [0, 180, 0] }
+          ]
+        },
+        {
+          "roomId": "r-ff-bed2",
+          "type": "bedroom",
+          "label": "Bedroom 2",
+          "polygon": [[0,5], [5,5], [5,9], [0,9]],
+          "areaSqFt": 215.2,
+          "connections": [{"toRoomId": "r-ff-mbed", "via": "door"}],
+          "furniture": [
+            { "id": "f-ff-bed2-bed", "type": "bed_queen", "position": [2.5, 0, 7.0], "rotation": [0, 0, 0] },
+            { "id": "f-ff-bed2-desk", "type": "desk", "position": [4.2, 0, 8.2], "rotation": [0, 270, 0] }
+          ]
+        },
+        {
+          "roomId": "r-ff-bed3",
+          "type": "bedroom",
+          "label": "Bedroom 3",
+          "polygon": [[5,5], [10,5], [10,9], [5,9]],
+          "areaSqFt": 215.2,
+          "connections": [],
+          "furniture": [
+            { "id": "f-ff-bed3-bed", "type": "bed_queen", "position": [7.5, 0, 7.0], "rotation": [0, 0, 0] }
+          ]
+        },
+        {
+          "roomId": "r-ff-balcony",
+          "type": "balcony",
+          "label": "Front Balcony",
+          "polygon": [[10,5], [14,5], [14,9], [10,9]],
+          "areaSqFt": 172.2,
+          "connections": [{"toRoomId": "r-ff-lounge", "via": "door"}],
+          "furniture": []
+        }
+      ],
+      "walls": [
+        { "id": "w-ff-ext-s1", "startPoint": [0,0], "endPoint": [14,0], "thickness": 0.25, "height": 3.0, "isExterior": true },
+        { "id": "w-ff-ext-e1", "startPoint": [14,0], "endPoint": [14,9], "thickness": 0.25, "height": 3.0, "isExterior": true },
+        { "id": "w-ff-ext-n1", "startPoint": [14,9], "endPoint": [0,9], "thickness": 0.25, "height": 3.0, "isExterior": true },
+        { "id": "w-ff-ext-w1", "startPoint": [0,9], "endPoint": [0,0], "thickness": 0.25, "height": 3.0, "isExterior": true },
+
+        { "id": "w-ff-int-1", "startPoint": [6,0], "endPoint": [6,5], "thickness": 0.15, "height": 3.0, "isExterior": false },
+        { "id": "w-ff-int-2", "startPoint": [6,3], "endPoint": [10,3], "thickness": 0.15, "height": 3.0, "isExterior": false },
+        { "id": "w-ff-int-3", "startPoint": [10,0], "endPoint": [10,9], "thickness": 0.15, "height": 3.0, "isExterior": false },
+        { "id": "w-ff-int-4", "startPoint": [0,5], "endPoint": [14,5], "thickness": 0.15, "height": 3.0, "isExterior": false },
+        { "id": "w-ff-int-5", "startPoint": [5,5], "endPoint": [5,9], "thickness": 0.15, "height": 3.0, "isExterior": false }
+      ],
+      "doors": [
+        { "id": "d-ff-mbath", "wallId": "w-ff-int-2", "position": [8.0, 3.0], "width": 0.8, "height": 2.0, "swing": "in-left" },
+        { "id": "d-ff-mbed", "wallId": "w-ff-int-1", "position": [6.0, 4.0], "width": 0.9, "height": 2.1, "swing": "in-left" },
+        { "id": "d-ff-bed2", "wallId": "w-ff-int-4", "position": [2.5, 5.0], "width": 0.9, "height": 2.1, "swing": "in-left" },
+        { "id": "d-ff-bed3", "wallId": "w-ff-int-4", "position": [7.5, 5.0], "width": 0.9, "height": 2.1, "swing": "in-left" },
+        { "id": "d-ff-balc", "wallId": "w-ff-int-4", "position": [12.0, 5.0], "width": 1.2, "height": 2.2, "swing": "sliding" }
+      ],
+      "windows": [
+        { "id": "win-ff-mbed", "wallId": "w-ff-ext-s1", "position": [3.0, 0], "width": 1.8, "height": 1.4, "sillHeight": 0.8 },
+        { "id": "win-ff-bed2", "wallId": "w-ff-ext-w1", "position": [0, 7.0], "width": 1.4, "height": 1.2, "sillHeight": 0.9 },
+        { "id": "win-ff-bed3", "wallId": "w-ff-ext-n1", "position": [7.5, 9.0], "width": 1.4, "height": 1.2, "sillHeight": 0.9 }
+      ],
+      "staircases": [],
+      "roof": {
+        "id": "roof-ff-top",
+        "type": "pitched_hip",
+        "height": 2.4,
+        "overhang": 0.6,
+        "color": "#b91c1c"
+      }
+    }
+  ]
+}

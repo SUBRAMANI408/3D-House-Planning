@@ -1,0 +1,55 @@
+building_type: house
+room_types:
+  - hall
+  - kitchen
+  - bedroom
+  - bathroom
+  - dining
+  - corridor
+  - living
+  - study
+  - garage
+  - balcony
+  - storeroom
+  - laundry
+min_room_areas_sqft:
+  hall: 80
+  kitchen: 60
+  bedroom: 100
+  bathroom: 30
+  dining: 80
+  corridor: 20
+  living: 120
+  study: 60
+  garage: 180
+  balcony: 20
+  storeroom: 20
+  laundry: 20
+adjacency_preferences:
+  kitchen:
+    must_be_adjacent_to: [dining]
+    preferred_adjacent_to: [living]
+  bedroom:
+    must_be_adjacent_to: [bathroom]
+    preferred_adjacent_to: [corridor]
+  living:
+    preferred_adjacent_to: [dining, hall]
+furniture_catalog:
+  bedroom:
+    required: [bed_double]
+    optional: [wardrobe, dresser, desk, side_table]
+  bathroom:
+    required: [toilet, sink]
+    optional: [shower, bathtub]
+  kitchen:
+    required: [kitchen_counter, sink, stove]
+    optional: [refrigerator, kitchen_island]
+  living:
+    required: [sofa]
+    optional: [tv, tv_unit, coffee_table, bookshelf]
+  dining:
+    required: [dining_table, dining_chair]
+default_floor_height_m: 3.0
+default_wall_thickness_m: 0.2
+min_corridor_width_m: 1.2
+min_door_clearance_m: 0.6
