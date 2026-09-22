@@ -11,14 +11,14 @@
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
-    "@react-three/fiber": "^9.7.0",
+    "@react-three/fiber": "9.7.0",
     "@types/three": "^0.186.0",
     "axios": "^1.20.0",
     "konva": "^10.5.0",
     "leva": "^0.10.1",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "react-konva": "^19.3.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-konva": "19.2.7",
     "react-router-dom": "^7.18.4",
     "three": "^0.186.0",
     "zustand": "^5.0.15"

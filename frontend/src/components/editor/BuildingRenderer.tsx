@@ -9,18 +9,21 @@ export const BuildingRenderer: React.FC = () => {
   const { building, selectedObjectId, selectObject } = useBuildingStore();
   const { layerVisibility } = useUIStore();
 
-  if (!building) return null;
+  // ── All hooks MUST be called unconditionally before any early returns ──────
+  const maxFloorIndex = useMemo(
+    () => building ? building.floors.reduce((max, f) => Math.max(max, f.index), 0) : 0,
+    [building]
+  );
 
-  const maxFloorIndex = building.floors.reduce((max, f) => Math.max(max, f.index), 0);
-
-  // ── Top-Level Memoized Floor Render Data (Rule of Hooks Compliant) ──────────
   const floorRenderData = useMemo(() => {
+    if (!building) return [];
+
     return building.floors.map((floor) => {
       const floorIdx = floor.index ?? 0;
       const elevation = floor.elevation ?? floor.height ?? (floorIdx * 3.0);
       const floorHeight = floor.floorToFloorHeight ?? 3.0;
 
-      // 1. Authoritative Wall Graph (eliminates duplicate overlapping walls)
+      // 1. Authoritative Wall Graph (deduplicates overlapping walls)
       const effectiveWalls: Wall[] = [];
       const wallMap = new Set<string>();
 
@@ -53,7 +56,7 @@ export const BuildingRenderer: React.FC = () => {
               endPoint: [p2[0], p2[1]],
               thickness: 0.2,
               height: floorHeight,
-              isExterior: i === 0 || i === pts.length - 1
+              isExterior: false,
             });
           }
         }
@@ -72,10 +75,9 @@ export const BuildingRenderer: React.FC = () => {
         const thickness = wall.thickness ?? 0.2;
         const height = wall.height ?? floorHeight;
 
-        // Doors on this wall
-        const doorsOnWall = (floor.doors ?? []).filter(d => d.wallId === wall.id || d.wallId === '');
-        // Windows on this wall
-        const windowsOnWall = (floor.windows ?? []).filter(w => w.wallId === wall.id || w.wallId === '');
+        // Doors on this wall — only match by wallId (no silent fallback)
+        const doorsOnWall = (floor.doors ?? []).filter(d => d.wallId === wall.id);
+        const windowsOnWall = (floor.windows ?? []).filter(w => w.wallId === wall.id);
 
         // Calculate cutouts along wall length (t in [0..1])
         const cutouts: { startDist: number; endDist: number; type: 'door' | 'window'; obj: Door | Window }[] = [];
@@ -88,6 +90,8 @@ export const BuildingRenderer: React.FC = () => {
             const px = d.position[0] - sp[0];
             const pz = d.position[1] - sp[1];
             t = (px * dx + pz * dz) / (wallLen * wallLen);
+          } else if (typeof d.t === 'number') {
+            t = d.t;
           }
           t = Math.max(0.05, Math.min(0.95, t));
           const centerDist = t * wallLen;
@@ -96,7 +100,7 @@ export const BuildingRenderer: React.FC = () => {
             startDist: Math.max(0, centerDist - halfW),
             endDist: Math.min(wallLen, centerDist + halfW),
             type: 'door',
-            obj: d
+            obj: d,
           });
         });
 
@@ -108,6 +112,8 @@ export const BuildingRenderer: React.FC = () => {
             const px = w.position[0] - sp[0];
             const pz = w.position[1] - sp[1];
             t = (px * dx + pz * dz) / (wallLen * wallLen);
+          } else if (typeof w.t === 'number') {
+            t = w.t;
           }
           t = Math.max(0.05, Math.min(0.95, t));
           const centerDist = t * wallLen;
@@ -116,7 +122,7 @@ export const BuildingRenderer: React.FC = () => {
             startDist: Math.max(0, centerDist - halfW),
             endDist: Math.min(wallLen, centerDist + halfW),
             type: 'window',
-            obj: w
+            obj: w,
           });
         });
 
@@ -155,7 +161,7 @@ export const BuildingRenderer: React.FC = () => {
               yOffset: height / 2,
               thickness,
               angle,
-              isExterior: wall.isExterior
+              isExterior: wall.isExterior,
             });
           }
 
@@ -181,7 +187,7 @@ export const BuildingRenderer: React.FC = () => {
                 yOffset: doorH + headerH / 2,
                 thickness,
                 angle,
-                isExterior: wall.isExterior
+                isExterior: wall.isExterior,
               });
             }
           } else if (c.type === 'window') {
@@ -201,7 +207,7 @@ export const BuildingRenderer: React.FC = () => {
                 yOffset: sillH / 2,
                 thickness,
                 angle,
-                isExterior: wall.isExterior
+                isExterior: wall.isExterior,
               });
             }
 
@@ -218,7 +224,7 @@ export const BuildingRenderer: React.FC = () => {
                 yOffset: (sillH + winH) + topH / 2,
                 thickness,
                 angle,
-                isExterior: wall.isExterior
+                isExterior: wall.isExterior,
               });
             }
           }
@@ -241,7 +247,7 @@ export const BuildingRenderer: React.FC = () => {
             yOffset: height / 2,
             thickness,
             angle,
-            isExterior: wall.isExterior
+            isExterior: wall.isExterior,
           });
         }
 
@@ -259,20 +265,23 @@ export const BuildingRenderer: React.FC = () => {
         windows: floor.windows,
         staircases: floor.staircases,
         roof: floor.roof,
-        isTopFloor: floorIdx === maxFloorIndex
+        isTopFloor: floorIdx === maxFloorIndex,
       };
     });
-  }, [building]);
+  }, [building, maxFloorIndex]);
+
+  // ── NOW safe to have conditional return AFTER all hook calls ──────────────
+  if (!building) return null;
 
   return (
     <group name="building-root">
       {floorRenderData.map((floor) => {
         return (
           <group key={`floor-${floor.floorIdx}`} name={`floor-${floor.floorIdx}`} position={[0, floor.elevation, 0]}>
-            {/* ── Floor Structural Base Slab ─────────────────────────────────────── */}
+            {/* ── Floor Structural Base Slab ──────────────────────────────────── */}
             <FloorSlabMesh rooms={floor.rooms} />
 
-            {/* ── Room Surfaces ─────────────────────────────────────────────────── */}
+            {/* ── Room Surfaces ──────────────────────────────────────────────── */}
             {floor.rooms.map((room) => (
               <RoomMesh
                 key={`room-${room.id}`}
@@ -282,7 +291,7 @@ export const BuildingRenderer: React.FC = () => {
               />
             ))}
 
-            {/* ── Solid Architectural Wall Meshes with Real Door/Window Openings ── */}
+            {/* ── Solid Architectural Wall Meshes with Real Door/Window Openings */}
             {layerVisibility.walls && floor.wallSegments.map((seg) => (
               <WallSegmentMesh
                 key={seg.id}
@@ -292,7 +301,7 @@ export const BuildingRenderer: React.FC = () => {
               />
             ))}
 
-            {/* ── Doors with Frames & Handles ───────────────────────────────────── */}
+            {/* ── Doors with Frames & Handles ────────────────────────────────── */}
             {layerVisibility.doors && floor.doors.map((door) => (
               <DoorMesh
                 key={`door-${door.id}`}
@@ -303,7 +312,7 @@ export const BuildingRenderer: React.FC = () => {
               />
             ))}
 
-            {/* ── Windows with Glass Panes & Mullions ───────────────────────────── */}
+            {/* ── Windows with Glass Panes & Mullions ────────────────────────── */}
             {layerVisibility.windows && floor.windows.map((win) => (
               <WindowMesh
                 key={`win-${win.id}`}
@@ -314,7 +323,7 @@ export const BuildingRenderer: React.FC = () => {
               />
             ))}
 
-            {/* ── Parametric Staircases ─────────────────────────────────────────── */}
+            {/* ── Parametric Staircases ───────────────────────────────────────── */}
             {floor.staircases.map((stair) => (
               <StaircaseMesh
                 key={`stair-${stair.id}`}
@@ -326,7 +335,7 @@ export const BuildingRenderer: React.FC = () => {
               />
             ))}
 
-            {/* ── Procedural Furniture Objects ──────────────────────────────────── */}
+            {/* ── Procedural Furniture Objects ────────────────────────────────── */}
             {layerVisibility.furniture && floor.rooms.flatMap((room) =>
               room.furniture.map((furn) => (
                 <FurnitureProcedural
@@ -338,7 +347,7 @@ export const BuildingRenderer: React.FC = () => {
               ))
             )}
 
-            {/* ── Top Floor Roof Structure ──────────────────────────────────────── */}
+            {/* ── Top Floor Roof Structure ─────────────────────────────────────── */}
             {layerVisibility.roof && floor.isTopFloor && (
               <RoofMesh
                 roof={floor.roof}
@@ -431,26 +440,30 @@ const DoorMesh: React.FC<{
   isSelected: boolean;
   onClick: (e: { stopPropagation: () => void }) => void;
 }> = ({ door, walls, isSelected, onClick }) => {
-  const wall = walls.find(w => w.id === door.wallId) || walls[0];
+  // Strict lookup — no silent fallback to walls[0]
+  const wall = walls.find(w => w.id === door.wallId);
   if (!wall) return null;
 
   const sp = wall.startPoint;
   const ep = wall.endPoint;
   const dx = ep[0] - sp[0];
   const dz = ep[1] - sp[1];
+  const wallLen = Math.sqrt(dx * dx + dz * dz);
   const angle = Math.atan2(dz, dx);
 
-  let px = sp[0] + 0.5 * dx;
-  let pz = sp[1] + 0.5 * dz;
-
+  let t = 0.5;
   if (typeof door.position === 'number') {
-    const t = Math.max(0.05, Math.min(0.95, door.position));
-    px = sp[0] + t * dx;
-    pz = sp[1] + t * dz;
+    t = Math.max(0.05, Math.min(0.95, door.position));
   } else if (Array.isArray(door.position)) {
-    px = door.position[0];
-    pz = door.position[1];
+    const px = door.position[0] - sp[0];
+    const pz = door.position[1] - sp[1];
+    t = wallLen > 0 ? Math.max(0.05, Math.min(0.95, (px * dx + pz * dz) / (wallLen * wallLen))) : 0.5;
+  } else if (typeof door.t === 'number') {
+    t = Math.max(0.05, Math.min(0.95, door.t));
   }
+
+  const px = sp[0] + t * dx;
+  const pz = sp[1] + t * dz;
 
   return (
     <group position={[px, door.height / 2, pz]} rotation={[0, -angle, 0]} onClick={onClick}>
@@ -481,26 +494,30 @@ const WindowMesh: React.FC<{
   isSelected: boolean;
   onClick: (e: { stopPropagation: () => void }) => void;
 }> = ({ windowObj, walls, isSelected, onClick }) => {
-  const wall = walls.find(w => w.id === windowObj.wallId) || walls[0];
+  // Strict lookup — no silent fallback to walls[0]
+  const wall = walls.find(w => w.id === windowObj.wallId);
   if (!wall) return null;
 
   const sp = wall.startPoint;
   const ep = wall.endPoint;
   const dx = ep[0] - sp[0];
   const dz = ep[1] - sp[1];
+  const wallLen = Math.sqrt(dx * dx + dz * dz);
   const angle = Math.atan2(dz, dx);
 
-  let px = sp[0] + 0.5 * dx;
-  let pz = sp[1] + 0.5 * dz;
-
+  let t = 0.5;
   if (typeof windowObj.position === 'number') {
-    const t = Math.max(0.05, Math.min(0.95, windowObj.position));
-    px = sp[0] + t * dx;
-    pz = sp[1] + t * dz;
+    t = Math.max(0.05, Math.min(0.95, windowObj.position));
   } else if (Array.isArray(windowObj.position)) {
-    px = windowObj.position[0];
-    pz = windowObj.position[1];
+    const px = windowObj.position[0] - sp[0];
+    const pz = windowObj.position[1] - sp[1];
+    t = wallLen > 0 ? Math.max(0.05, Math.min(0.95, (px * dx + pz * dz) / (wallLen * wallLen))) : 0.5;
+  } else if (typeof windowObj.t === 'number') {
+    t = Math.max(0.05, Math.min(0.95, windowObj.t));
   }
+
+  const px = sp[0] + t * dx;
+  const pz = sp[1] + t * dz;
 
   const sillH = windowObj.sillHeight ?? windowObj.sill ?? 0.9;
   const py = sillH + windowObj.height / 2;
@@ -538,34 +555,50 @@ const StaircaseMesh: React.FC<{
   const px = stair.position[0];
   const pz = stair.position[1];
   const totalH = floorHeight ?? 3.0;
-  const steps = 14;
+  const steps = Math.max(10, Math.round(totalH / 0.2)); // ~200mm riser
   const stepH = totalH / steps;
   const stepL = stair.length / steps;
   const stepW = stair.width;
 
+  // Stair orientation: along Z axis by default
+  const diagonalLen = Math.sqrt(totalH * totalH + stair.length * stair.length);
+  const railAngle = Math.atan2(totalH, stair.length);
+
   return (
     <group position={[px, 0, pz]} onClick={onClick}>
+      {/* Stair treads */}
       {Array.from({ length: steps }).map((_, i) => (
-        <mesh key={i} position={[stepW / 2, i * stepH + stepH / 2, i * stepL + stepL / 2]} castShadow receiveShadow>
+        <mesh key={i} position={[0, i * stepH + stepH / 2, i * stepL + stepL / 2]} castShadow receiveShadow>
           <boxGeometry args={[stepW, stepH, stepL]} />
           <meshStandardMaterial
-            color={isSelected ? '#6366f1' : '#475569'}
+            color={isSelected ? '#6366f1' : '#64748b'}
             roughness={0.6}
-            metalness={0.2}
+            metalness={0.15}
             transparent={false}
           />
         </mesh>
       ))}
-      {/* Handrail Balustrade */}
-      <mesh position={[0.05, totalH / 2 + 0.4, stair.length / 2]} rotation={[Math.atan2(totalH, stair.length), 0, 0]}>
-        <cylinderGeometry args={[0.03, 0.03, Math.sqrt(totalH * totalH + stair.length * stair.length), 8]} />
+      {/* Left handrail */}
+      <mesh
+        position={[-stepW / 2 + 0.05, totalH / 2 + 0.5, stair.length / 2]}
+        rotation={[-railAngle, 0, 0]}
+      >
+        <cylinderGeometry args={[0.03, 0.03, diagonalLen + 0.3, 8]} />
+        <meshStandardMaterial color="#f59e0b" metalness={0.8} roughness={0.2} />
+      </mesh>
+      {/* Right handrail */}
+      <mesh
+        position={[stepW / 2 - 0.05, totalH / 2 + 0.5, stair.length / 2]}
+        rotation={[-railAngle, 0, 0]}
+      >
+        <cylinderGeometry args={[0.03, 0.03, diagonalLen + 0.3, 8]} />
         <meshStandardMaterial color="#f59e0b" metalness={0.8} roughness={0.2} />
       </mesh>
     </group>
   );
 };
 
-// ── RoofMesh ──────────────────────────────────────────────────────────────────
+// ── RoofMesh — proper gabled prism instead of a cone ─────────────────────────
 
 const RoofMesh: React.FC<{
   roof?: Roof;
@@ -594,6 +627,46 @@ const RoofMesh: React.FC<{
     return { w, d, h, cx, cz, type, color };
   }, [rooms, roof]);
 
+  // Build gable roof geometry procedurally
+  const gableGeometry = useMemo(() => {
+    if (!roofData || roofData.type === 'flat') return null;
+    const { w, d, h } = roofData;
+    // A gabled prism: 5 vertices — 4 base corners + 2 ridge points
+    // Ridge runs along X axis at the mid-Z
+    const hw = w / 2;
+    const hd = d / 2;
+
+    const vertices = new Float32Array([
+      // Base quad (CCW from front)
+      -hw, 0,  hd,   // 0 front-left
+       hw, 0,  hd,   // 1 front-right
+       hw, 0, -hd,   // 2 back-right
+      -hw, 0, -hd,   // 3 back-left
+      // Ridge
+      -hw, h,  0,    // 4 ridge-left
+       hw, h,  0,    // 5 ridge-right
+    ]);
+
+    // 8 triangles forming the gable prism
+    const indices = new Uint16Array([
+      // Front gable triangle
+      0, 1, 4,  1, 5, 4,
+      // Back gable triangle
+      3, 4, 2,  4, 5, 2,
+      // Left slope (front-left → ridge-left → back-left)
+      0, 4, 3,
+      // Right slope (front-right → back-right → ridge-right)
+      1, 2, 5,
+      // Base (optional — covered by slab so skip)
+    ]);
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    geo.setIndex(new THREE.BufferAttribute(indices, 1));
+    geo.computeVertexNormals();
+    return geo;
+  }, [roofData]);
+
   if (!roofData) return null;
 
   return (
@@ -611,20 +684,32 @@ const RoofMesh: React.FC<{
             <meshStandardMaterial color="#475569" roughness={0.7} transparent={false} />
           </mesh>
         </group>
-      ) : (
+      ) : roofData.type === 'pitched_hip' ? (
         <group>
-          {/* Pitched Roof Pyramid Structure */}
+          {/* Hip roof — 4-sided pyramid */}
           <mesh position={[0, roofData.h / 2, 0]} rotation={[0, Math.PI / 4, 0]} castShadow receiveShadow>
-            <coneGeometry args={[Math.max(roofData.w, roofData.d) * 0.65, roofData.h, 4]} />
+            <coneGeometry args={[Math.max(roofData.w, roofData.d) * 0.72, roofData.h, 4]} />
             <meshStandardMaterial color={roofData.color} roughness={0.5} metalness={0.15} transparent={false} />
           </mesh>
-          {/* Eave Underhang Base */}
+          {/* Eave underhang */}
           <mesh position={[0, 0.05, 0]} castShadow>
             <boxGeometry args={[roofData.w, 0.1, roofData.d]} />
             <meshStandardMaterial color="#1e293b" roughness={0.6} transparent={false} />
           </mesh>
         </group>
-      )}
+      ) : gableGeometry ? (
+        /* Proper gabled prism for pitched_gable */
+        <group>
+          <mesh geometry={gableGeometry} castShadow receiveShadow>
+            <meshStandardMaterial color={roofData.color} roughness={0.5} metalness={0.1} side={THREE.DoubleSide} transparent={false} />
+          </mesh>
+          {/* Eave underhang */}
+          <mesh position={[0, 0.05, 0]} castShadow>
+            <boxGeometry args={[roofData.w, 0.1, roofData.d]} />
+            <meshStandardMaterial color="#1e293b" roughness={0.6} transparent={false} />
+          </mesh>
+        </group>
+      ) : null}
     </group>
   );
 };
@@ -685,27 +770,34 @@ const FurnitureProcedural: React.FC<{
 
   const isBed = furniture.type.startsWith('bed');
   const isSofa = furniture.type.startsWith('sofa');
-  const isKitchen = furniture.type.includes('kitchen');
+  const isKitchen = furniture.type.includes('kitchen') || furniture.type === 'refrigerator' || furniture.type === 'stove';
   const isBath = furniture.type === 'toilet' || furniture.type === 'bathtub' || furniture.type === 'shower' || furniture.type === 'sink';
+  const isTable = furniture.type === 'dining_table' || furniture.type === 'coffee_table';
+  const isDeskOrShelf = furniture.type === 'desk' || furniture.type === 'bookshelf' || furniture.type === 'dresser' || furniture.type === 'wardrobe';
+  const isTV = furniture.type === 'tv' || furniture.type === 'tv_unit';
 
   return (
     <group position={[px, 0, pz]} rotation={[0, ry, 0]} onClick={onClick}>
 
-      {/* ── BED ───────────────────────────────────────────────────────────── */}
+      {/* ── BED ──────────────────────────────────────────────────────────── */}
       {isBed && (
         <group position={[0, dims.h / 2, 0]}>
+          {/* Bed frame */}
           <mesh castShadow position={[0, -dims.h * 0.3, 0]}>
             <boxGeometry args={[dims.w, dims.h * 0.4, dims.d]} />
             <meshStandardMaterial color="#451a03" roughness={0.6} transparent={false} />
           </mesh>
+          {/* Headboard */}
           <mesh castShadow position={[0, dims.h * 0.2, -dims.d / 2 + 0.05]}>
             <boxGeometry args={[dims.w, dims.h * 0.8, 0.1]} />
             <meshStandardMaterial color={isSelected ? '#6366f1' : '#312e81'} roughness={0.4} transparent={false} />
           </mesh>
+          {/* Mattress */}
           <mesh castShadow position={[0, 0.05, 0.05]}>
             <boxGeometry args={[dims.w - 0.08, dims.h * 0.35, dims.d - 0.15]} />
             <meshStandardMaterial color="#f8fafc" roughness={0.8} transparent={false} />
           </mesh>
+          {/* Pillows */}
           <mesh castShadow position={[-dims.w * 0.25, dims.h * 0.25, -dims.d * 0.3]}>
             <boxGeometry args={[dims.w * 0.4, 0.1, 0.35]} />
             <meshStandardMaterial color="#e0e7ff" transparent={false} />
@@ -717,7 +809,7 @@ const FurnitureProcedural: React.FC<{
         </group>
       )}
 
-      {/* ── SOFA ──────────────────────────────────────────────────────────── */}
+      {/* ── SOFA ─────────────────────────────────────────────────────────── */}
       {isSofa && (
         <group position={[0, dims.h / 2, 0]}>
           <mesh castShadow position={[0, -0.1, 0]}>
@@ -739,7 +831,7 @@ const FurnitureProcedural: React.FC<{
         </group>
       )}
 
-      {/* ── KITCHEN COUNTER / REFRIGERATOR ──────────────────────────────── */}
+      {/* ── KITCHEN APPLIANCES ───────────────────────────────────────────── */}
       {isKitchen && (
         <group position={[0, dims.h / 2, 0]}>
           {furniture.type === 'refrigerator' ? (
@@ -752,6 +844,20 @@ const FurnitureProcedural: React.FC<{
                 <boxGeometry args={[0.04, 0.6, 0.03]} />
                 <meshStandardMaterial color="#cbd5e1" metalness={0.9} transparent={false} />
               </mesh>
+            </group>
+          ) : furniture.type === 'stove' ? (
+            <group>
+              <mesh castShadow>
+                <boxGeometry args={[dims.w, dims.h, dims.d]} />
+                <meshStandardMaterial color="#1e293b" roughness={0.4} transparent={false} />
+              </mesh>
+              {/* Burner rings */}
+              {[[-0.15, -0.15], [0.15, -0.15], [-0.15, 0.15], [0.15, 0.15]].map(([bx, bz], bi) => (
+                <mesh key={bi} position={[bx, dims.h / 2 + 0.01, bz]}>
+                  <cylinderGeometry args={[0.08, 0.08, 0.02, 16]} />
+                  <meshStandardMaterial color="#374151" roughness={0.3} />
+                </mesh>
+              ))}
             </group>
           ) : (
             <group>
@@ -795,36 +901,105 @@ const FurnitureProcedural: React.FC<{
           )}
           {furniture.type === 'shower' && (
             <group>
-              <mesh position={[0, 0, 0]}>
+              <mesh>
                 <boxGeometry args={[dims.w, dims.h, dims.d]} />
                 <meshStandardMaterial color="#38bdf8" transparent opacity={0.3} roughness={0.1} />
+              </mesh>
+              <mesh position={[0, dims.h / 2, 0]}>
+                <cylinderGeometry args={[0.03, 0.03, 0.1, 8]} />
+                <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
               </mesh>
             </group>
           )}
           {furniture.type === 'sink' && (
-            <mesh castShadow position={[0, 0.2, 0]}>
-              <boxGeometry args={[dims.w, 0.25, dims.d]} />
+            <mesh castShadow>
+              <boxGeometry args={[dims.w, dims.h + 0.7, dims.d]} />
               <meshStandardMaterial color="#f8fafc" roughness={0.2} transparent={false} />
             </mesh>
           )}
         </group>
       )}
 
-      {/* ── GENERIC / TABLES / WARDROBES / TV ────────────────────────────── */}
-      {!isBed && !isSofa && !isKitchen && !isBath && (
-        <mesh position={[0, dims.h / 2, 0]} castShadow receiveShadow>
+      {/* ── TABLES ───────────────────────────────────────────────────────── */}
+      {isTable && (
+        <group>
+          {/* Table top */}
+          <mesh position={[0, dims.h, 0]} castShadow>
+            <boxGeometry args={[dims.w, 0.05, dims.d]} />
+            <meshStandardMaterial color={isSelected ? '#6366f1' : '#78350f'} roughness={0.5} transparent={false} />
+          </mesh>
+          {/* Table legs */}
+          {[[-dims.w / 2 + 0.05, -dims.d / 2 + 0.05], [dims.w / 2 - 0.05, -dims.d / 2 + 0.05],
+            [-dims.w / 2 + 0.05, dims.d / 2 - 0.05], [dims.w / 2 - 0.05, dims.d / 2 - 0.05]].map(([lx, lz], li) => (
+            <mesh key={li} position={[lx, dims.h / 2, lz]} castShadow>
+              <cylinderGeometry args={[0.03, 0.03, dims.h, 8]} />
+              <meshStandardMaterial color="#451a03" roughness={0.5} />
+            </mesh>
+          ))}
+        </group>
+      )}
+
+      {/* ── WARDROBE / DESK / SHELF / DRESSER ───────────────────────────── */}
+      {isDeskOrShelf && (
+        <mesh position={[0, dims.h / 2, 0]} castShadow>
           <boxGeometry args={[dims.w, dims.h, dims.d]} />
-          <meshStandardMaterial
-            color={isSelected ? '#6366f1' : '#d97706'}
-            roughness={0.5}
-            metalness={0.2}
-            transparent={false}
-            emissive={isSelected ? new THREE.Color('#4f46e5') : new THREE.Color('#000000')}
-            emissiveIntensity={isSelected ? 0.4 : 0}
-          />
+          <meshStandardMaterial color={isSelected ? '#6366f1' : furniture.type === 'wardrobe' ? '#292524' : '#1c1917'} roughness={0.6} transparent={false} />
         </mesh>
       )}
 
+      {/* ── TV / TV UNIT ─────────────────────────────────────────────────── */}
+      {isTV && (
+        <group>
+          <mesh position={[0, dims.h / 2, 0]} castShadow>
+            <boxGeometry args={[dims.w, dims.h, dims.d]} />
+            <meshStandardMaterial color={isSelected ? '#6366f1' : '#0f172a'} roughness={0.3} metalness={0.5} transparent={false} />
+          </mesh>
+          {furniture.type === 'tv' && (
+            <mesh position={[0, dims.h / 2, 0.01]}>
+              <boxGeometry args={[dims.w - 0.04, dims.h - 0.04, 0.01]} />
+              <meshStandardMaterial color="#1d4ed8" emissive="#1d4ed8" emissiveIntensity={0.3} transparent={false} />
+            </mesh>
+          )}
+        </group>
+      )}
+
+      {/* ── DINING CHAIR / OFFICE CHAIR ─────────────────────────────────── */}
+      {(furniture.type === 'dining_chair' || furniture.type === 'office_chair') && (
+        <group>
+          {/* Seat */}
+          <mesh position={[0, dims.h * 0.5, 0]} castShadow>
+            <boxGeometry args={[dims.w, 0.05, dims.d]} />
+            <meshStandardMaterial color={isSelected ? '#6366f1' : '#4b5563'} roughness={0.6} transparent={false} />
+          </mesh>
+          {/* Backrest */}
+          <mesh position={[0, dims.h * 0.75, -dims.d / 2 + 0.05]} castShadow>
+            <boxGeometry args={[dims.w, dims.h * 0.4, 0.06]} />
+            <meshStandardMaterial color="#374151" roughness={0.6} transparent={false} />
+          </mesh>
+          {/* Legs */}
+          {[[-dims.w / 2 + 0.05, -dims.d / 2 + 0.05], [dims.w / 2 - 0.05, -dims.d / 2 + 0.05],
+            [-dims.w / 2 + 0.05, dims.d / 2 - 0.05], [dims.w / 2 - 0.05, dims.d / 2 - 0.05]].map(([lx, lz], li) => (
+            <mesh key={li} position={[lx, dims.h * 0.25, lz]} castShadow>
+              <cylinderGeometry args={[0.02, 0.02, dims.h * 0.5, 6]} />
+              <meshStandardMaterial color="#1f2937" roughness={0.4} />
+            </mesh>
+          ))}
+        </group>
+      )}
+
+      {/* ── SIDE TABLE ───────────────────────────────────────────────────── */}
+      {furniture.type === 'side_table' && (
+        <group>
+          <mesh position={[0, dims.h, 0]} castShadow>
+            <boxGeometry args={[dims.w, 0.04, dims.d]} />
+            <meshStandardMaterial color={isSelected ? '#6366f1' : '#78350f'} roughness={0.5} transparent={false} />
+          </mesh>
+          <mesh position={[0, dims.h / 2, 0]} castShadow>
+            <cylinderGeometry args={[0.04, 0.04, dims.h, 8]} />
+            <meshStandardMaterial color="#451a03" roughness={0.5} />
+          </mesh>
+        </group>
+      )}
     </group>
   );
 };

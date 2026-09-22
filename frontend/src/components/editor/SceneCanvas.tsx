@@ -25,94 +25,90 @@ if (typeof window !== 'undefined') {
 }
 
 const WalkthroughCameraControls: React.FC = () => {
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
   const moveState = useRef({ forward: false, backward: false, left: false, right: false });
+  const isLocked = useRef(false);
 
   useEffect(() => {
-    // Position camera at comfortable eye-level height inside/near the house
-    camera.position.set(3, 1.65, 3);
+    // Start camera at eye-level near the building entrance
+    camera.position.set(5, 1.65, -2);
+    camera.lookAt(5, 1.65, 5);
 
     const onKeyDown = (e: KeyboardEvent) => {
+      // Prevent default scrolling for arrow keys
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+        e.preventDefault();
+      }
       switch (e.code) {
-        case 'KeyW':
-        case 'ArrowUp':
-          moveState.current.forward = true;
-          break;
-        case 'KeyS':
-        case 'ArrowDown':
-          moveState.current.backward = true;
-          break;
-        case 'KeyA':
-        case 'ArrowLeft':
-          moveState.current.left = true;
-          break;
-        case 'KeyD':
-        case 'ArrowRight':
-          moveState.current.right = true;
-          break;
+        case 'KeyW': case 'ArrowUp':    moveState.current.forward  = true;  break;
+        case 'KeyS': case 'ArrowDown':  moveState.current.backward = true;  break;
+        case 'KeyA': case 'ArrowLeft':  moveState.current.left     = true;  break;
+        case 'KeyD': case 'ArrowRight': moveState.current.right    = true;  break;
       }
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
       switch (e.code) {
-        case 'KeyW':
-        case 'ArrowUp':
-          moveState.current.forward = false;
-          break;
-        case 'KeyS':
-        case 'ArrowDown':
-          moveState.current.backward = false;
-          break;
-        case 'KeyA':
-        case 'ArrowLeft':
-          moveState.current.left = false;
-          break;
-        case 'KeyD':
-        case 'ArrowRight':
-          moveState.current.right = false;
-          break;
+        case 'KeyW': case 'ArrowUp':    moveState.current.forward  = false; break;
+        case 'KeyS': case 'ArrowDown':  moveState.current.backward = false; break;
+        case 'KeyA': case 'ArrowLeft':  moveState.current.left     = false; break;
+        case 'KeyD': case 'ArrowRight': moveState.current.right    = false; break;
       }
     };
 
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
+    const onLockChange = () => {
+      isLocked.current = document.pointerLockElement === gl.domElement;
     };
-  }, [camera]);
+
+    // Use document so events fire even when pointer is locked inside the canvas
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keyup', onKeyUp);
+    document.addEventListener('pointerlockchange', onLockChange);
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('keyup', onKeyUp);
+      document.removeEventListener('pointerlockchange', onLockChange);
+      // Clear all movement on unmount
+      moveState.current = { forward: false, backward: false, left: false, right: false };
+    };
+  }, [camera, gl]);
 
   useFrame((_, delta) => {
-    const speed = 7.0 * delta; // 7 meters per second
+    const ms = moveState.current;
+    if (!ms.forward && !ms.backward && !ms.left && !ms.right) return;
+
+    const speed = 5.0 * delta; // 5 m/s — comfortable walking pace
     const dir = new THREE.Vector3();
     camera.getWorldDirection(dir);
-    dir.y = 0; // Lock movement on horizontal plane
+    dir.y = 0;
     dir.normalize();
 
-    const sideDir = new THREE.Vector3(-dir.z, 0, dir.x);
+    // Right vector = cross(dir, up)
+    const right = new THREE.Vector3();
+    right.crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
 
-    if (moveState.current.forward) {
-      camera.position.addScaledVector(dir, speed);
-    }
-    if (moveState.current.backward) {
-      camera.position.addScaledVector(dir, -speed);
-    }
-    if (moveState.current.left) {
-      camera.position.addScaledVector(sideDir, -speed);
-    }
-    if (moveState.current.right) {
-      camera.position.addScaledVector(sideDir, speed);
-    }
+    if (ms.forward)  camera.position.addScaledVector(dir,   speed);
+    if (ms.backward) camera.position.addScaledVector(dir,  -speed);
+    if (ms.right)    camera.position.addScaledVector(right, speed);
+    if (ms.left)     camera.position.addScaledVector(right, -speed);
+
+    // Keep camera at eye level — don't drift vertically
+    camera.position.y = 1.65;
   });
 
-  return <PointerLockControls />;
+  return (
+    <PointerLockControls
+      selector="#scene-canvas-container"
+    />
+  );
 };
 
 export const SceneCanvas: React.FC = () => {
   const { cameraMode, showStats, showGrid } = useUIStore();
 
   return (
-    <div style={{ flexGrow: 1, height: '100%', position: 'relative', overflow: 'hidden' }}>
+    <div id="scene-canvas-container" style={{ flexGrow: 1, height: '100%', position: 'relative', overflow: 'hidden' }}>
       <Canvas
         shadows
         dpr={[1, 2]}

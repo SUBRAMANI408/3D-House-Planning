@@ -153,6 +153,8 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
         index: 0,
         name: 'Ground Floor',
         height: 0,
+        elevation: 0,
+        floorToFloorHeight: 3.0,
         rooms: floor0Rooms,
         walls: floor0Walls,
         doors: floor0Doors,
@@ -168,9 +170,10 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
             id: `r-f1-mbed-${timestamp}`,
             name: 'Master Suite',
             type: 'bedroom' as RoomType,
-            wallIds: [],
+            wallIds: [`w1-s1-${timestamp}`, `w1-w1-${timestamp}`, `w1-i1-${timestamp}`, `w1-i3-${timestamp}`],
             polygon: [[0, 0], [6, 0], [6, 5], [0, 5]],
-            area: 322.9,
+            area: 30.0,     // 6m × 5m = 30 m²
+            areaSqFt: 322.9,
             furniture: [
               { id: `f-f1-king-${timestamp}`, type: 'bed_king', position: [3, 0, 2], rotation: [0, 0, 0] },
               { id: `f-f1-ward-${timestamp}`, type: 'wardrobe', position: [5.2, 0, 4], rotation: [0, 270, 0] }
@@ -181,9 +184,10 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
             id: `r-f1-mbath-${timestamp}`,
             name: 'Ensuite Bathroom',
             type: 'bathroom' as RoomType,
-            wallIds: [],
+            wallIds: [`w1-s1-${timestamp}`, `w1-i1-${timestamp}`, `w1-i2-${timestamp}`, `w1-e1-${timestamp}`],
             polygon: [[6, 0], [9, 0], [9, 3], [6, 3]],
-            area: 96.8,
+            area: 9.0,      // 3m × 3m = 9 m²
+            areaSqFt: 96.8,
             furniture: [
               { id: `f-f1-tub-${timestamp}`, type: 'bathtub', position: [7.5, 0, 1.5], rotation: [0, 0, 0] },
               { id: `f-f1-toilet-${timestamp}`, type: 'toilet', position: [8.2, 0, 2.5], rotation: [0, 0, 0] }
@@ -194,11 +198,13 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
             id: `r-f1-bed2-${timestamp}`,
             name: 'Bedroom 2',
             type: 'bedroom' as RoomType,
-            wallIds: [],
+            wallIds: [`w1-w1-${timestamp}`, `w1-i3-${timestamp}`, `w1-i4-${timestamp}`, `w1-n2-${timestamp}`],
             polygon: [[0, 5], [5, 5], [5, 9], [0, 9]],
-            area: 215.2,
+            area: 20.0,     // 5m × 4m = 20 m²
+            areaSqFt: 215.2,
             furniture: [
-              { id: `f-f1-b2bed-${timestamp}`, type: 'bed_queen', position: [2.5, 0, 7], rotation: [0, 0, 0] }
+              { id: `f-f1-b2bed-${timestamp}`, type: 'bed_queen', position: [2.5, 0, 7], rotation: [0, 0, 0] },
+              { id: `f-f1-b2side-${timestamp}`, type: 'side_table', position: [4.2, 0, 7], rotation: [0, 0, 0] }
             ],
             connections: []
           },
@@ -206,11 +212,13 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
             id: `r-f1-bed3-${timestamp}`,
             name: bedroomsCount >= 3 ? 'Bedroom 3' : 'Study Office',
             type: (bedroomsCount >= 3 ? 'bedroom' : 'office') as RoomType,
-            wallIds: [],
+            wallIds: [`w1-i4-${timestamp}`, `w1-i3-${timestamp}`, `w1-n1-${timestamp}`, `w1-n2-${timestamp}`],
             polygon: [[5, 5], [10, 5], [10, 9], [5, 9]],
-            area: 215.2,
+            area: 20.0,     // 5m × 4m = 20 m²
+            areaSqFt: 215.2,
             furniture: [
-              { id: `f-f1-b3bed-${timestamp}`, type: bedroomsCount >= 3 ? 'bed_queen' : 'desk', position: [7.5, 0, 7], rotation: [0, 0, 0] }
+              { id: `f-f1-b3bed-${timestamp}`, type: bedroomsCount >= 3 ? 'bed_queen' : 'desk', position: [7.5, 0, 7], rotation: [0, 0, 0] },
+              { id: `f-f1-b3ward-${timestamp}`, type: 'wardrobe', position: [9.2, 0, 6], rotation: [0, 180, 0] }
             ],
             connections: []
           },
@@ -218,9 +226,10 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
             id: `r-f1-lounge-${timestamp}`,
             name: 'Family Lounge',
             type: 'living' as RoomType,
-            wallIds: [],
+            wallIds: [`w1-i1-${timestamp}`, `w1-i2-${timestamp}`, `w1-e2-${timestamp}`, `w1-i3-${timestamp}`],
             polygon: [[6, 3], [11, 3], [11, 5], [6, 5]],
-            area: 86.1,
+            area: 10.0,     // 5m × 2m = 10 m²
+            areaSqFt: 107.6,
             furniture: [
               { id: `f-f1-lsofa-${timestamp}`, type: 'sofa', position: [8.5, 0, 4], rotation: [0, 180, 0] }
             ],
@@ -233,15 +242,16 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
             id: `r-f1-balc-${timestamp}`,
             name: 'Terrace Balcony',
             type: 'balcony' as RoomType,
-            wallIds: [],
+            wallIds: [`w1-e1-${timestamp}`, `w1-e2-${timestamp}`, `w1-s1-${timestamp}`],
             polygon: [[9, 0], [14, 0], [14, 3], [9, 3]],
-            area: 161.4,
+            area: 15.0,     // 5m × 3m = 15 m²
+            areaSqFt: 161.4,
             furniture: [],
             connections: []
           });
         }
 
-        const endS1X = hasBalcony ? 14 : 9;
+        const endS1X = hasBalcony ? 14 : 11;
 
         const floor1Walls: Wall[] = [
           { id: `w1-s1-${timestamp}`, startPoint: [0, 0], endPoint: [endS1X, 0], thickness: 0.25, height: 3.0, isExterior: true },
@@ -253,15 +263,19 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
           { id: `w1-w1-${timestamp}`, startPoint: [0, 9], endPoint: [0, 0], thickness: 0.25, height: 3.0, isExterior: true },
 
           { id: `w1-i1-${timestamp}`, startPoint: [6, 0], endPoint: [6, 5], thickness: 0.15, height: 3.0, isExterior: false },
-          { id: `w1-i2-${timestamp}`, startPoint: [6, 3], endPoint: [9, 3], thickness: 0.15, height: 3.0, isExterior: false },
-          { id: `w1-i3-${timestamp}`, startPoint: [0, 5], endPoint: [11, 5], thickness: 0.15, height: 3.0, isExterior: false },
+          { id: `w1-i2-${timestamp}`, startPoint: [9, 0], endPoint: [9, 3], thickness: 0.15, height: 3.0, isExterior: false },
+          { id: `w1-i3-${timestamp}`, startPoint: [0, 5], endPoint: [10, 5], thickness: 0.15, height: 3.0, isExterior: false },
           { id: `w1-i4-${timestamp}`, startPoint: [5, 5], endPoint: [5, 9], thickness: 0.15, height: 3.0, isExterior: false }
         ];
 
         const floor1Doors: Door[] = [
-          { id: `d1-mbed-${timestamp}`, wallId: `w1-i1-${timestamp}`, position: [6, 4], width: 0.9, height: 2.1, swing: 'in-left' },
-          { id: `d1-mbath-${timestamp}`, wallId: `w1-i2-${timestamp}`, position: [7.5, 3], width: 0.8, height: 2.0, swing: 'in-left' },
+          // Master suite entrance from landing area (wall runs x=6 y=0..5)
+          { id: `d1-mbed-${timestamp}`, wallId: `w1-i1-${timestamp}`, position: [6, 4.2], width: 0.9, height: 2.1, swing: 'in-left' },
+          // Ensuite bathroom door (wall runs x=9 y=0..3)
+          { id: `d1-mbath-${timestamp}`, wallId: `w1-i2-${timestamp}`, position: [9, 1.5], width: 0.8, height: 2.0, swing: 'in-left' },
+          // Bedroom 2 door (wall runs y=5 x=0..10)
           { id: `d1-bed2-${timestamp}`, wallId: `w1-i3-${timestamp}`, position: [2.5, 5], width: 0.9, height: 2.1, swing: 'in-left' },
+          // Bedroom 3 / Study door (wall runs y=5)
           { id: `d1-bed3-${timestamp}`, wallId: `w1-i3-${timestamp}`, position: [7.5, 5], width: 0.9, height: 2.1, swing: 'in-left' }
         ];
 
@@ -271,15 +285,19 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
           { id: `win1-bed3-${timestamp}`, wallId: `w1-n2-${timestamp}`, position: [7.5, 9], width: 1.5, height: 1.2, sillHeight: 0.9 }
         ];
 
+        // Staircase landing is in Family Lounge area (6..11, 3..5)
+        // Place stairs at [6.2, 3.3] going forward in +z direction to reach the ground floor stair at [3.2, 5.2]
         const floor1Stairs: Staircase[] = [
-          { id: `stair1-${timestamp}`, startFloorIndex: 0, endFloorIndex: 1, position: [3.2, 5.2], width: 1.2, length: 2.6, type: 'straight' },
-          ...(floorsCount > 2 ? [{ id: `stair1-2-${timestamp}`, startFloorIndex: 1, endFloorIndex: 2, position: [7.2, 3.2] as Vector2, width: 1.2, length: 2.6, type: 'straight' as const }] : [])
+          { id: `stair1-${timestamp}`, startFloorIndex: 0, endFloorIndex: 1, position: [2.8, 5.3], width: 1.2, length: 2.8, type: 'straight' },
+          ...(floorsCount > 2 ? [{ id: `stair1-2-${timestamp}`, startFloorIndex: 1, endFloorIndex: 2, position: [8.2, 3.5] as Vector2, width: 1.2, length: 2.4, type: 'straight' as const }] : [])
         ];
 
         createdFloors.push({
           index: 1,
           name: 'First Floor',
           height: 3.0,
+          elevation: 3.0,
+          floorToFloorHeight: 3.0,
           rooms: floor1Rooms,
           walls: floor1Walls,
           doors: floor1Doors,
@@ -295,16 +313,20 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
           index: 2,
           name: 'Second Floor (Penthouse)',
           height: 6.0,
+          elevation: 6.0,
+          floorToFloorHeight: 3.0,
           rooms: [
             {
               id: `r-f2-suite-${timestamp}`,
-              name: 'Sky Lounge & Penthouse Suite',
+              name: 'Penthouse Suite',
               type: 'bedroom' as RoomType,
-              wallIds: [],
+              wallIds: [`w2-s1-${timestamp}`, `w2-w1-${timestamp}`, `w2-i1-${timestamp}`, `w2-n1-${timestamp}`],
               polygon: [[0, 0], [6, 0], [6, 5], [0, 5]],
-              area: 322.9,
+              area: 30.0,     // 6m × 5m = 30 m²
+              areaSqFt: 322.9,
               furniture: [
-                { id: `f-f2-king-${timestamp}`, type: 'bed_king', position: [3, 0, 2], rotation: [0, 0, 0] }
+                { id: `f-f2-king-${timestamp}`, type: 'bed_king', position: [3, 0, 2], rotation: [0, 0, 0] },
+                { id: `f-f2-ward-${timestamp}`, type: 'wardrobe', position: [5.2, 0, 4], rotation: [0, 270, 0] }
               ],
               connections: []
             },
@@ -312,9 +334,10 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
               id: `r-f2-terrace-${timestamp}`,
               name: 'Roof Terrace',
               type: 'balcony' as RoomType,
-              wallIds: [],
+              wallIds: [`w2-i1-${timestamp}`, `w2-s1-${timestamp}`, `w2-e1-${timestamp}`, `w2-n1-${timestamp}`],
               polygon: [[6, 0], [12, 0], [12, 5], [6, 5]],
-              area: 322.9,
+              area: 30.0,     // 6m × 5m = 30 m²
+              areaSqFt: 322.9,
               furniture: [],
               connections: []
             }
@@ -330,10 +353,11 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
             { id: `d2-terr-${timestamp}`, wallId: `w2-i1-${timestamp}`, position: [6, 2.5], width: 1.2, height: 2.2, swing: 'sliding' }
           ],
           windows: [
-            { id: `win2-suite-${timestamp}`, wallId: `w2-s1-${timestamp}`, position: [3, 0], width: 1.8, height: 1.4, sillHeight: 0.8 }
+            { id: `win2-suite-${timestamp}`, wallId: `w2-s1-${timestamp}`, position: [3, 0], width: 1.8, height: 1.4, sillHeight: 0.8 },
+            { id: `win2-terr-${timestamp}`, wallId: `w2-s1-${timestamp}`, position: [9, 0], width: 2.4, height: 1.6, sillHeight: 0.6 }
           ],
           staircases: [
-            { id: `stair2-${timestamp}`, startFloorIndex: 1, endFloorIndex: 2, position: [7.2, 3.2], width: 1.2, length: 2.6, type: 'straight' }
+            { id: `stair2-${timestamp}`, startFloorIndex: 1, endFloorIndex: 2, position: [8.2, 3.5], width: 1.2, length: 2.4, type: 'straight' }
           ],
           roof: undefined as Roof | undefined
         });
