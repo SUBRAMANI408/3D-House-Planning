@@ -120,7 +120,7 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
 
     if (existing) return existing;
 
-    const wallId = `wall-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 4)}`;
+    const wallId = `wall-${crypto.randomUUID()}`;
     const newWall: Wall = {
       id: wallId,
       startPoint: start,
@@ -134,7 +134,7 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
   };
 
   const createRoomWithWalls = (preset: RoomPreset, posX: number, posY: number) => {
-    const rId = `room-${Date.now().toString(36)}`;
+    const rId = `room-${crypto.randomUUID()}`;
     const w = preset.w;
     const h = preset.h;
     const poly: Vector2[] = [
@@ -192,7 +192,7 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
           return;
         }
         const newWall: Wall = {
-          id: `wall-${Date.now().toString(36)}`,
+          id: `wall-${crypto.randomUUID()}`,
           startPoint: drawingStart,
           endPoint: [mx, my],
           thickness: 0.2,
@@ -216,7 +216,7 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
 
       const dims = FURNITURE_DIMENSIONS[selectedFurnitureType] || { w: 1, d: 1, h: 0.8 };
       const newFurn: FurnitureItem = {
-        id: `furn-${Date.now().toString(36)}`,
+        id: `furn-${crypto.randomUUID()}`,
         type: selectedFurnitureType,
         position: [mx, 0, my],
         rotation: [0, 0, 0],
@@ -262,7 +262,7 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
 
       if (activeTool === 'door') {
         const newDoor: Door = {
-          id: `door-${Date.now().toString(36)}`,
+          id: `door-${crypto.randomUUID()}`,
           wallId: nearestWall.id,
           position: bestProj,
           t: clampedT,
@@ -274,7 +274,7 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
         addToast({ type: 'success', message: 'Door attached to wall' });
       } else {
         const newWin: Window = {
-          id: `win-${Date.now().toString(36)}`,
+          id: `win-${crypto.randomUUID()}`,
           wallId: nearestWall.id,
           position: bestProj,
           t: clampedT,

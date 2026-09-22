@@ -42,6 +42,7 @@ export interface Wall {
   height: number;
   material?: string;
   isExterior: boolean;
+  isLoadBearing?: boolean;
   visible?: boolean;
 }
 

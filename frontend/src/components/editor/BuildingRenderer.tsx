@@ -279,7 +279,7 @@ export const BuildingRenderer: React.FC = () => {
         return (
           <group key={`floor-${floor.floorIdx}`} name={`floor-${floor.floorIdx}`} position={[0, floor.elevation, 0]}>
             {/* ── Floor Structural Base Slab ──────────────────────────────────── */}
-            <FloorSlabMesh rooms={floor.rooms} />
+            <FloorSlabMesh rooms={floor.rooms} staircases={floor.staircases} />
 
             {/* ── Room Surfaces ──────────────────────────────────────────────── */}
             {floor.rooms.map((room) => (
@@ -364,33 +364,44 @@ export const BuildingRenderer: React.FC = () => {
 
 // ── FloorSlabMesh ─────────────────────────────────────────────────────────────
 
-const FloorSlabMesh: React.FC<{ rooms: Room[] }> = ({ rooms }) => {
-  const slabData = useMemo(() => {
-    if (rooms.length === 0) return null;
-    const allPts = rooms.flatMap(r => r.polygon || []);
-    if (allPts.length < 3) return null;
+const FloorSlabMesh: React.FC<{ rooms: Room[]; staircases?: Staircase[] }> = ({ rooms, staircases = [] }) => {
+  const geometries = useMemo(() => {
+    return rooms.map((room) => {
+      if (!room.polygon || room.polygon.length < 3) return null;
+      const shape = new THREE.Shape();
+      shape.moveTo(room.polygon[0][0], -room.polygon[0][1]);
+      for (let i = 1; i < room.polygon.length; i++) {
+        shape.lineTo(room.polygon[i][0], -room.polygon[i][1]);
+      }
+      shape.closePath();
 
-    const minX = Math.min(...allPts.map(p => p[0]));
-    const maxX = Math.max(...allPts.map(p => p[0]));
-    const minZ = Math.min(...allPts.map(p => p[1]));
-    const maxZ = Math.max(...allPts.map(p => p[1]));
+      // Cut out staircase openings from the slab
+      staircases.forEach((stair) => {
+        const sx = stair.position[0];
+        const sz = stair.position[1];
+        const sw = stair.width ?? 1.2;
+        const sl = stair.length ?? 2.6;
 
-    const w = maxX - minX + 0.4;
-    const d = maxZ - minZ + 0.4;
-    const cx = (minX + maxX) / 2;
-    const cz = (minZ + maxZ) / 2;
+        const hole = new THREE.Path();
+        hole.moveTo(sx - sw / 2, -(sz - sl / 2));
+        hole.lineTo(sx + sw / 2, -(sz - sl / 2));
+        hole.lineTo(sx + sw / 2, -(sz + sl / 2));
+        hole.lineTo(sx - sw / 2, -(sz + sl / 2));
+        hole.closePath();
+        shape.holes.push(hole);
+      });
 
-    return { w, d, cx, cz };
-  }, [rooms]);
-
-  if (!slabData) return null;
+      return new THREE.ExtrudeGeometry(shape, { depth: 0.2, bevelEnabled: false });
+    }).filter(Boolean);
+  }, [rooms, staircases]);
 
   return (
-    <group position={[slabData.cx, -0.1, slabData.cz]}>
-      <mesh receiveShadow castShadow position={[0, 0, 0]}>
-        <boxGeometry args={[slabData.w, 0.2, slabData.d]} />
-        <meshStandardMaterial color="#1e293b" roughness={0.8} transparent={false} />
-      </mesh>
+    <group position={[0, -0.2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      {geometries.map((geo, idx) => geo && (
+        <mesh key={idx} geometry={geo} receiveShadow castShadow>
+          <meshStandardMaterial color="#1e293b" roughness={0.8} transparent={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
     </group>
   );
 };
@@ -555,42 +566,94 @@ const StaircaseMesh: React.FC<{
   const px = stair.position[0];
   const pz = stair.position[1];
   const totalH = floorHeight ?? 3.0;
-  const steps = Math.max(10, Math.round(totalH / 0.2)); // ~200mm riser
-  const stepH = totalH / steps;
-  const stepL = stair.length / steps;
-  const stepW = stair.width;
+  const stairType = stair.type || 'straight';
+  const stepW = stair.width ?? 1.2;
+  const stairL = stair.length ?? 2.6;
 
-  // Stair orientation: along Z axis by default
-  const diagonalLen = Math.sqrt(totalH * totalH + stair.length * stair.length);
-  const railAngle = Math.atan2(totalH, stair.length);
+  const matColor = isSelected ? '#6366f1' : '#64748b';
+
+  if (stairType === 'spiral') {
+    const steps = 18;
+    const stepH = totalH / steps;
+    const radius = Math.max(stepW, 0.8);
+    return (
+      <group position={[px, 0, pz]} onClick={onClick}>
+        <mesh position={[0, totalH / 2, 0]} castShadow>
+          <cylinderGeometry args={[0.1, 0.1, totalH, 16]} />
+          <meshStandardMaterial color="#334155" metalness={0.7} roughness={0.3} />
+        </mesh>
+        {Array.from({ length: steps }).map((_, i) => {
+          const angle = (i / steps) * Math.PI * 2.2;
+          const y = i * stepH + stepH / 2;
+          return (
+            <group key={i} position={[0, y, 0]} rotation={[0, angle, 0]}>
+              <mesh position={[radius / 2, 0, 0]} castShadow receiveShadow>
+                <boxGeometry args={[radius, stepH * 0.9, 0.28]} />
+                <meshStandardMaterial color={matColor} roughness={0.6} metalness={0.2} />
+              </mesh>
+            </group>
+          );
+        })}
+      </group>
+    );
+  }
+
+  const typeStr = String(stairType);
+  if (typeStr === 'l-shaped' || typeStr === 'l_shaped' || typeStr === 'u-shaped' || typeStr === 'u_shaped') {
+    const isU = stairType.startsWith('u');
+    const stepsFirst = 8;
+    const stepsSecond = 8;
+    const totalSteps = stepsFirst + stepsSecond;
+    const stepH = totalH / totalSteps;
+    const halfL = stairL / 2;
+    const stepL = halfL / stepsFirst;
+
+    return (
+      <group position={[px, 0, pz]} onClick={onClick}>
+        {Array.from({ length: stepsFirst }).map((_, i) => (
+          <mesh key={`f1-${i}`} position={[0, i * stepH + stepH / 2, i * stepL + stepL / 2]} castShadow receiveShadow>
+            <boxGeometry args={[stepW, stepH, stepL]} />
+            <meshStandardMaterial color={matColor} roughness={0.6} metalness={0.15} />
+          </mesh>
+        ))}
+        <mesh position={[isU ? 0 : stepW / 2, stepsFirst * stepH + 0.05, halfL + stepW / 2]} castShadow receiveShadow>
+          <boxGeometry args={[isU ? stepW * 2.1 : stepW, 0.1, stepW]} />
+          <meshStandardMaterial color={isSelected ? '#6366f1' : '#475569'} roughness={0.5} />
+        </mesh>
+        {Array.from({ length: stepsSecond }).map((_, i) => {
+          const y = (stepsFirst + i) * stepH + stepH / 2;
+          const xOffset = isU ? stepW * 1.1 : stepW;
+          const zOffset = isU ? halfL - i * stepL : halfL + stepW + i * stepL;
+          return (
+            <mesh key={`f2-${i}`} position={[xOffset, y, zOffset]} castShadow receiveShadow>
+              <boxGeometry args={[stepW, stepH, stepL]} />
+              <meshStandardMaterial color={matColor} roughness={0.6} metalness={0.15} />
+            </mesh>
+          );
+        })}
+      </group>
+    );
+  }
+
+  const steps = Math.max(10, Math.round(totalH / 0.2));
+  const stepH = totalH / steps;
+  const stepL = stairL / steps;
+  const diagonalLen = Math.sqrt(totalH * totalH + stairL * stairL);
+  const railAngle = Math.atan2(totalH, stairL);
 
   return (
     <group position={[px, 0, pz]} onClick={onClick}>
-      {/* Stair treads */}
       {Array.from({ length: steps }).map((_, i) => (
         <mesh key={i} position={[0, i * stepH + stepH / 2, i * stepL + stepL / 2]} castShadow receiveShadow>
           <boxGeometry args={[stepW, stepH, stepL]} />
-          <meshStandardMaterial
-            color={isSelected ? '#6366f1' : '#64748b'}
-            roughness={0.6}
-            metalness={0.15}
-            transparent={false}
-          />
+          <meshStandardMaterial color={matColor} roughness={0.6} metalness={0.15} />
         </mesh>
       ))}
-      {/* Left handrail */}
-      <mesh
-        position={[-stepW / 2 + 0.05, totalH / 2 + 0.5, stair.length / 2]}
-        rotation={[-railAngle, 0, 0]}
-      >
+      <mesh position={[-stepW / 2 + 0.05, totalH / 2 + 0.5, stairL / 2]} rotation={[-railAngle, 0, 0]}>
         <cylinderGeometry args={[0.03, 0.03, diagonalLen + 0.3, 8]} />
         <meshStandardMaterial color="#f59e0b" metalness={0.8} roughness={0.2} />
       </mesh>
-      {/* Right handrail */}
-      <mesh
-        position={[stepW / 2 - 0.05, totalH / 2 + 0.5, stair.length / 2]}
-        rotation={[-railAngle, 0, 0]}
-      >
+      <mesh position={[stepW / 2 - 0.05, totalH / 2 + 0.5, stairL / 2]} rotation={[-railAngle, 0, 0]}>
         <cylinderGeometry args={[0.03, 0.03, diagonalLen + 0.3, 8]} />
         <meshStandardMaterial color="#f59e0b" metalness={0.8} roughness={0.2} />
       </mesh>

@@ -10,7 +10,8 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
-  // Q&A State
+  // Q&A & Prompt State
+  const [naturalPrompt, setNaturalPrompt] = useState<string>('3 BHK modern minimalist house with 2 floors, master suite, garage, and balcony');
   const [buildingType, setBuildingType] = useState<BuildingType>('house');
   const [floorsCount, setFloorsCount] = useState<number>(2);
   const [bedroomsCount, setBedroomsCount] = useState<number>(3);
@@ -455,31 +456,60 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
           ))}
         </div>
 
-        {/* Step 1: Building Type */}
+        {/* Step 1: Building Prompt & Type */}
         {step === 1 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
-            {[
-              { id: 'house', label: 'Residential House', emoji: '🏠' },
-              { id: 'apartment', label: 'Apartment', emoji: '🏢' },
-              { id: 'shop', label: 'Retail Shop', emoji: '🏪' },
-              { id: 'hospital', label: 'Medical Facility', emoji: '🏥' },
-            ].map(item => (
-              <div
-                key={item.id}
-                onClick={() => setBuildingType(item.id as BuildingType)}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div>
+              <label style={{ fontWeight: 600, fontSize: '14px', display: 'block', marginBottom: '8px' }}>
+                ✨ Describe your building in plain English:
+              </label>
+              <textarea
+                value={naturalPrompt}
+                onChange={(e) => setNaturalPrompt(e.target.value)}
+                rows={3}
+                placeholder="e.g. 3 BHK modern house with 2 floors, master bedroom on first floor with balcony, attached bathrooms, garage on ground floor..."
                 style={{
-                  padding: '16px',
+                  width: '100%',
+                  padding: '12px',
                   borderRadius: 'var(--radius-md)',
-                  border: `2px solid ${buildingType === item.id ? 'var(--accent-secondary)' : 'var(--border-default)'}`,
-                  backgroundColor: buildingType === item.id ? 'rgba(139,92,246,0.1)' : 'var(--bg-elevated)',
-                  cursor: 'pointer',
-                  textAlign: 'center'
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  fontSize: '14px',
+                  resize: 'vertical',
+                  fontFamily: 'inherit'
                 }}
-              >
-                <div style={{ fontSize: '32px', marginBottom: '8px' }}>{item.emoji}</div>
-                <div style={{ fontWeight: 600, fontSize: '14px' }}>{item.label}</div>
+              />
+            </div>
+            <div>
+              <label style={{ fontWeight: 600, fontSize: '14px', display: 'block', marginBottom: '8px' }}>
+                Building Typology:
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px' }}>
+                {[
+                  { id: 'house', label: 'Residential House', emoji: '🏠' },
+                  { id: 'apartment', label: 'Apartment', emoji: '🏢' },
+                  { id: 'shop', label: 'Retail Shop', emoji: '🏪' },
+                  { id: 'hospital', label: 'Medical Facility', emoji: '🏥' },
+                ].map(item => (
+                  <div
+                    key={item.id}
+                    onClick={() => setBuildingType(item.id as BuildingType)}
+                    style={{
+                      padding: '12px',
+                      borderRadius: 'var(--radius-md)',
+                      border: `2px solid ${buildingType === item.id ? 'var(--accent-secondary)' : 'var(--border-default)'}`,
+                      backgroundColor: buildingType === item.id ? 'rgba(139,92,246,0.1)' : 'var(--bg-elevated)',
+                      cursor: 'pointer',
+                      textAlign: 'center'
+                    }}
+                  >
+                    <div style={{ fontSize: '28px', marginBottom: '4px' }}>{item.emoji}</div>
+                    <div style={{ fontWeight: 600, fontSize: '13px' }}>{item.label}</div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
         )}
 

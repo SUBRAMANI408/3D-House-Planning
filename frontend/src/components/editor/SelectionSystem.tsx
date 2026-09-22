@@ -12,18 +12,21 @@ export const SelectionSystem: React.FC = () => {
   const [transformMode] = useState<'translate' | 'rotate' | 'scale'>('translate');
 
   useEffect(() => {
-    if (!selectedObjectId) {
-      setSelectedMesh(null);
-      return;
-    }
-    let found = false;
-    scene.traverse((child) => {
-      if (child.name === selectedObjectId && !found) {
-        setSelectedMesh(child);
-        found = true;
+    let frameId: number;
+    frameId = requestAnimationFrame(() => {
+      if (!selectedObjectId) {
+        setSelectedMesh(null);
+        return;
       }
+      let found: THREE.Object3D | null = null;
+      scene.traverse((child) => {
+        if (child.name === selectedObjectId && !found) {
+          found = child;
+        }
+      });
+      setSelectedMesh(found);
     });
-    if (!found) setSelectedMesh(null);
+    return () => cancelAnimationFrame(frameId);
   }, [selectedObjectId, scene]);
 
   // Deselect on background click

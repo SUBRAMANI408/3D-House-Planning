@@ -122,7 +122,8 @@ export function denormalizeBuilding(building: Building): Record<string, any> {
           thickness: wall.thickness,
           height: wall.height,
           material: wall.material ?? 'concrete',
-          is_load_bearing: wall.isExterior,
+          is_load_bearing: wall.isLoadBearing ?? false,
+          isLoadBearing: wall.isLoadBearing ?? false,
           isExterior: wall.isExterior,
           visible: wall.visible ?? true
         })),

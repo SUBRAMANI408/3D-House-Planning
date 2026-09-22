@@ -162,7 +162,8 @@ class Wall(BaseModel):
     thickness: float = 0.2
     height: float = 3.0
     material: str = "concrete"
-    is_load_bearing: bool = Field(False, validation_alias=AliasChoices("is_load_bearing", "isLoadBearing", "isExterior"))
+    is_exterior: bool = Field(False, validation_alias=AliasChoices("is_exterior", "isExterior"))
+    is_load_bearing: bool = Field(False, validation_alias=AliasChoices("is_load_bearing", "isLoadBearing"))
     visible: bool = True
 
     model_config = {"populate_by_name": True}

@@ -74,13 +74,14 @@ const WalkthroughCameraControls: React.FC = () => {
     };
   }, [camera, gl]);
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     const ms = moveState.current;
     if (!ms.forward && !ms.backward && !ms.left && !ms.right) return;
 
+    const activeCam = state.camera;
     const speed = 5.0 * delta; // 5 m/s — comfortable walking pace
     const dir = new THREE.Vector3();
-    camera.getWorldDirection(dir);
+    activeCam.getWorldDirection(dir);
     dir.y = 0;
     dir.normalize();
 
@@ -88,13 +89,13 @@ const WalkthroughCameraControls: React.FC = () => {
     const right = new THREE.Vector3();
     right.crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
 
-    if (ms.forward)  camera.position.addScaledVector(dir,   speed);
-    if (ms.backward) camera.position.addScaledVector(dir,  -speed);
-    if (ms.right)    camera.position.addScaledVector(right, speed);
-    if (ms.left)     camera.position.addScaledVector(right, -speed);
+    if (ms.forward)  activeCam.position.addScaledVector(dir,   speed);
+    if (ms.backward) activeCam.position.addScaledVector(dir,  -speed);
+    if (ms.right)    activeCam.position.addScaledVector(right, speed);
+    if (ms.left)     activeCam.position.addScaledVector(right, -speed);
 
     // Keep camera at eye level — don't drift vertically
-    camera.position.y = 1.65;
+    activeCam.position.y = 1.65;
   });
 
   return (

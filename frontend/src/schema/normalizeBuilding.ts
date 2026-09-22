@@ -54,10 +54,23 @@ export function normalizeConnection(raw: any): RoomConnection {
   };
 }
 
+export function calculatePolygonArea(polygon: Vector2[]): number {
+  if (!polygon || polygon.length < 3) return 0;
+  let area = 0;
+  const n = polygon.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    area += polygon[i][0] * polygon[j][1];
+    area -= polygon[j][0] * polygon[i][1];
+  }
+  return Math.abs(area) / 2.0;
+}
+
 export function normalizeRoom(raw: any, idx: number): Room {
   const polygon: Vector2[] = (raw.polygon ?? []).map((p: any) => [Number(p[0]), Number(p[1])]);
-  const areaSqFt = raw.areaSqFt ?? (raw.area ? raw.area * 10.7639 : 0);
-  const areaM2 = raw.area ?? (raw.areaSqFt ? raw.areaSqFt / 10.7639 : 0);
+  const calcArea = calculatePolygonArea(polygon);
+  const areaM2 = calcArea > 0 ? calcArea : Number(raw.area ?? (raw.areaSqFt ? raw.areaSqFt / 10.7639 : 0));
+  const areaSqFt = Number((areaM2 * 10.7639).toFixed(1));
 
   return {
     id: raw.id ?? raw.roomId ?? `room-${idx}`,
@@ -65,7 +78,7 @@ export function normalizeRoom(raw: any, idx: number): Room {
     type: (raw.type ?? 'living') as RoomType,
     wallIds: raw.wallIds ?? [],
     polygon,
-    area: areaM2,
+    area: Number(areaM2.toFixed(1)),
     areaSqFt,
     furniture: (raw.furniture ?? []).map((f: any, i: number) => normalizeFurniture(f, i)),
     connections: (raw.connections ?? []).map((c: any) => normalizeConnection(c)),
@@ -83,7 +96,8 @@ export function normalizeWall(raw: any, idx: number): Wall {
     thickness: Number(raw.thickness ?? 0.2),
     height: Number(raw.height ?? 3.0),
     material: raw.material ?? 'concrete',
-    isExterior: Boolean(raw.isExterior ?? raw.is_load_bearing ?? raw.isLoadBearing ?? false),
+    isExterior: Boolean(raw.isExterior ?? false),
+    isLoadBearing: Boolean(raw.isLoadBearing ?? raw.is_load_bearing ?? false),
     visible: raw.visible !== false
   };
 }
