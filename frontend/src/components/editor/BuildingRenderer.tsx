@@ -618,7 +618,7 @@ const RoofMesh: React.FC<{
     const w = maxX - minX + overhang * 2;
     const d = maxZ - minZ + overhang * 2;
     const h = roof?.height ?? 2.2;
-    const type = roof?.type ?? 'pitched_gable';
+    const type = roof?.type ?? 'flat';
     const color = roof?.color ?? '#b91c1c';
 
     const cx = (minX + maxX) / 2;
@@ -724,9 +724,9 @@ const RoomMesh: React.FC<{
   const geometry = useMemo(() => {
     if (!room.polygon || room.polygon.length < 3) return null;
     const shape = new THREE.Shape();
-    shape.moveTo(room.polygon[0][0], room.polygon[0][1]);
+    shape.moveTo(room.polygon[0][0], -room.polygon[0][1]);
     for (let i = 1; i < room.polygon.length; i++) {
-      shape.lineTo(room.polygon[i][0], room.polygon[i][1]);
+      shape.lineTo(room.polygon[i][0], -room.polygon[i][1]);
     }
     shape.closePath();
     return new THREE.ExtrudeGeometry(shape, { depth: 0.04, bevelEnabled: false });
