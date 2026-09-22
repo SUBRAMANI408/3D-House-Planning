@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { useBuildingStore } from '../../store/buildingStore';
 import { useUIStore } from '../../store/uiStore';
-import type { Wall, Room, FurnitureItem, Door, Window, Staircase, Roof } from '../../schema/building.types';
+import type { Wall, Room, FurnitureItem, Door, Window, Staircase, Roof, Vector2 } from '../../schema/building.types';
 import { ROOM_COLORS, FURNITURE_DIMENSIONS } from '../../schema/building.types';
 
 export const BuildingRenderer: React.FC = () => {
@@ -129,6 +129,21 @@ export const BuildingRenderer: React.FC = () => {
         // Sort cutouts along wall
         cutouts.sort((a, b) => a.startDist - b.startDist);
 
+        // Merge overlapping/adjacent cutout intervals
+        const mergedCutouts: typeof cutouts = [];
+        for (const c of cutouts) {
+          if (mergedCutouts.length === 0) {
+            mergedCutouts.push(c);
+          } else {
+            const prev = mergedCutouts[mergedCutouts.length - 1];
+            if (c.startDist < prev.endDist) {
+              prev.endDist = Math.max(prev.endDist, c.endDist);
+            } else {
+              mergedCutouts.push(c);
+            }
+          }
+        }
+
         // Sub-segment generation
         const segments: {
           id: string;
@@ -145,7 +160,7 @@ export const BuildingRenderer: React.FC = () => {
 
         let currentDist = 0;
 
-        cutouts.forEach((c, idx) => {
+        mergedCutouts.forEach((c, idx) => {
           // Solid wall segment before cutout
           if (c.startDist > currentDist + 0.05) {
             const segLen = c.startDist - currentDist;
@@ -364,6 +379,19 @@ export const BuildingRenderer: React.FC = () => {
 
 // ── FloorSlabMesh ─────────────────────────────────────────────────────────────
 
+const isStairInRoom = (stair: Staircase, polygon: Vector2[]): boolean => {
+  if (!stair.position || !polygon || polygon.length < 3) return false;
+  const [sx, sz] = stair.position;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0], yi = polygon[i][1];
+    const xj = polygon[j][0], yj = polygon[j][1];
+    const intersect = ((yi > sz) !== (yj > sz)) && (sx < (xj - xi) * (sz - yi) / (yj - yi + 0.000001) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+};
+
 const FloorSlabMesh: React.FC<{ rooms: Room[]; staircases?: Staircase[] }> = ({ rooms, staircases = [] }) => {
   const geometries = useMemo(() => {
     return rooms.map((room) => {
@@ -375,8 +403,9 @@ const FloorSlabMesh: React.FC<{ rooms: Room[]; staircases?: Staircase[] }> = ({ 
       }
       shape.closePath();
 
-      // Cut out staircase openings from the slab
+      // Cut out staircase openings from the slab strictly inside containing rooms
       staircases.forEach((stair) => {
+        if (!isStairInRoom(stair, room.polygon)) return;
         const sx = stair.position[0];
         const sz = stair.position[1];
         const sw = stair.width ?? 1.2;
@@ -730,6 +759,41 @@ const RoofMesh: React.FC<{
     return geo;
   }, [roofData]);
 
+  const hipGeometry = useMemo(() => {
+    if (!roofData || roofData.type !== 'pitched_hip') return null;
+    const w = roofData.w;
+    const d = roofData.d;
+    const h = roofData.h;
+
+    const ridgeLen = Math.max(0, w - d);
+
+    const vertices = new Float32Array([
+      -w / 2, 0, -d / 2,   // 0: front-left
+       w / 2, 0, -d / 2,   // 1: front-right
+       w / 2, 0,  d / 2,   // 2: back-right
+      -w / 2, 0,  d / 2,   // 3: back-left
+      -ridgeLen / 2, h, 0,  // 4: ridge-left
+       ridgeLen / 2, h, 0,  // 5: ridge-right
+    ]);
+
+    const indices = new Uint16Array([
+      // Front face
+      0, 1, 5,   0, 5, 4,
+      // Back face
+      3, 4, 5,   3, 5, 2,
+      // Left hip triangle
+      0, 4, 3,
+      // Right hip triangle
+      1, 2, 5,
+    ]);
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    geo.setIndex(new THREE.BufferAttribute(indices, 1));
+    geo.computeVertexNormals();
+    return geo;
+  }, [roofData]);
+
   if (!roofData) return null;
 
   return (
@@ -747,12 +811,11 @@ const RoofMesh: React.FC<{
             <meshStandardMaterial color="#475569" roughness={0.7} transparent={false} />
           </mesh>
         </group>
-      ) : roofData.type === 'pitched_hip' ? (
+      ) : roofData.type === 'pitched_hip' && hipGeometry ? (
         <group>
-          {/* Hip roof — 4-sided pyramid */}
-          <mesh position={[0, roofData.h / 2, 0]} rotation={[0, Math.PI / 4, 0]} castShadow receiveShadow>
-            <coneGeometry args={[Math.max(roofData.w, roofData.d) * 0.72, roofData.h, 4]} />
-            <meshStandardMaterial color={roofData.color} roughness={0.5} metalness={0.15} transparent={false} />
+          {/* True 4-slope hip roof geometry */}
+          <mesh geometry={hipGeometry} castShadow receiveShadow>
+            <meshStandardMaterial color={roofData.color} roughness={0.5} metalness={0.15} side={THREE.DoubleSide} transparent={false} />
           </mesh>
           {/* Eave underhang */}
           <mesh position={[0, 0.05, 0]} castShadow>

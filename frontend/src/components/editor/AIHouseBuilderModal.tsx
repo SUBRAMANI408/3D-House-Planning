@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useBuildingStore } from '../../store/buildingStore';
 import { useUIStore } from '../../store/uiStore';
+import { apiClient } from '../../api/client';
 import type { Building, Room, Wall, Door, Window, Staircase, Roof, BuildingType, RoomType, Vector2 } from '../../schema/building.types';
 import { normalizeBuilding } from '../../schema/normalizeBuilding';
 
@@ -22,11 +23,39 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
 
   const [generating, setGenerating] = useState<boolean>(false);
   const [generatedBuilding, setGeneratedBuilding] = useState<Building | null>(null);
+  const [validationReport, setValidationReport] = useState<{ status: string; totalIssues: number } | null>(null);
 
   if (!isOpen) return null;
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setGenerating(true);
+    try {
+      // Call backend AI generation & pre-validation service
+      const res = await apiClient.post('/api/ai/generate', {
+        prompt: naturalPrompt,
+        buildingType,
+        floorsCount,
+        bedroomsCount,
+        bathroomsCount,
+        hasGarage,
+        hasBalcony,
+        style,
+      });
+
+      if (res.data && res.data.building) {
+        const norm = normalizeBuilding(res.data.building);
+        setGeneratedBuilding(norm);
+        setValidationReport(res.data.validation || { status: 'passed', totalIssues: 0 });
+        setGenerating(false);
+        setStep(4);
+        addToast({ type: 'success', message: 'AI House generated and validated successfully!' });
+        return;
+      }
+    } catch (err) {
+      console.warn('Backend AI service fallback to local builder:', err);
+    }
+
+    // Local client generator with full room connection graph & shoelace area
     setTimeout(() => {
       const timestamp = Date.now();
       const bId = `ai-house-${timestamp}`;
@@ -50,7 +79,11 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
             { id: `f-gf-tv-${timestamp}`, type: 'tv_unit', position: [5.5, 0, 2.5], rotation: [0, 270, 0] },
             { id: `f-gf-table-${timestamp}`, type: 'coffee_table', position: [3, 0, 1.8], rotation: [0, 0, 0] }
           ],
-          connections: []
+          connections: [
+            { toRoomId: `r-gf-kit-${timestamp}`, via: 'door', doorId: `d0-kit-${timestamp}` },
+            { toRoomId: `r-gf-din-${timestamp}`, via: 'door', doorId: `d0-din-${timestamp}` },
+            { toRoomId: `entrance`, via: 'door', doorId: `d0-main-${timestamp}` }
+          ]
         },
         {
           id: `r-gf-kit-${timestamp}`,
@@ -64,7 +97,9 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
             { id: `f-gf-counter-${timestamp}`, type: 'kitchen_counter', position: [9, 0, 4.4], rotation: [0, 0, 0] },
             { id: `f-gf-fridge-${timestamp}`, type: 'refrigerator', position: [10.2, 0, 1.0], rotation: [0, 270, 0] }
           ],
-          connections: []
+          connections: [
+            { toRoomId: `r-gf-liv-${timestamp}`, via: 'door', doorId: `d0-kit-${timestamp}` }
+          ]
         },
         {
           id: `r-gf-din-${timestamp}`,
@@ -77,7 +112,10 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
           furniture: [
             { id: `f-gf-din-tbl-${timestamp}`, type: 'dining_table', position: [3, 0, 7], rotation: [0, 0, 0] }
           ],
-          connections: []
+          connections: [
+            { toRoomId: `r-gf-liv-${timestamp}`, via: 'door', doorId: `d0-din-${timestamp}` },
+            { toRoomId: `r-gf-foyer-${timestamp}`, via: 'opening' }
+          ]
         },
         {
           id: `r-gf-bath-${timestamp}`,
@@ -91,7 +129,9 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
             { id: `f-gf-toilet-${timestamp}`, type: 'toilet', position: [7, 0, 6], rotation: [0, 0, 0] },
             { id: `f-gf-sink-${timestamp}`, type: 'sink', position: [8.2, 0, 6], rotation: [0, 0, 0] }
           ],
-          connections: []
+          connections: [
+            { toRoomId: `r-gf-foyer-${timestamp}`, via: 'door', doorId: `d0-bath-${timestamp}` }
+          ]
         },
         {
           id: `r-gf-foyer-${timestamp}`,
@@ -102,7 +142,11 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
           area: 6,
           areaSqFt: 64.6,
           furniture: [],
-          connections: []
+          connections: [
+            { toRoomId: `r-gf-din-${timestamp}`, via: 'opening' },
+            { toRoomId: `r-gf-bath-${timestamp}`, via: 'door', doorId: `d0-bath-${timestamp}` },
+            { toRoomId: `entrance`, via: 'door', doorId: `d0-main-${timestamp}` }
+          ]
         }
       ];
 
@@ -590,10 +634,23 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', backgroundColor: 'var(--bg-elevated)', padding: '20px', borderRadius: 'var(--radius-md)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <span style={{ fontSize: '36px' }}>✨</span>
-              <div>
+              <div style={{ flex: 1 }}>
                 <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>{generatedBuilding.metadata.name}</h3>
                 <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '13px' }}>{generatedBuilding.metadata.description}</p>
               </div>
+              {validationReport && (
+                <div style={{
+                  padding: '6px 12px',
+                  borderRadius: '12px',
+                  background: validationReport.status === 'passed' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                  border: `1px solid ${validationReport.status === 'passed' ? '#22c55e' : '#ef4444'}`,
+                  color: validationReport.status === 'passed' ? '#22c55e' : '#ef4444',
+                  fontSize: '12px',
+                  fontWeight: 700
+                }}>
+                  {validationReport.status === 'passed' ? '✅ Validated' : `⚠️ ${validationReport.totalIssues} Issues`}
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', textAlign: 'center', marginTop: '8px' }}>

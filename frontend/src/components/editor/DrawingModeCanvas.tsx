@@ -331,6 +331,7 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
       const dy = newMinY - curMinY;
 
       const newPoly: Vector2[] = origPoly.map(p => [snapToGrid(p[0] + dx), snapToGrid(p[1] + dy)]);
+      const movedWallIds = initialRoomState.room.wallIds;
 
       updateBuilding(b => ({
         ...b,
@@ -342,15 +343,21 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
               ...furn,
               position: [furn.position[0] + dx, furn.position[1], (furn.position[2] ?? furn.position[1]) + dy] as [number, number, number]
             }));
+            const areaM2 = Math.abs(newPoly.reduce((acc, p, i) => {
+              const next = newPoly[(i + 1) % newPoly.length];
+              return acc + (p[0] * next[1] - next[0] * p[1]);
+            }, 0)) / 2;
             return {
               ...r,
               polygon: newPoly,
+              area: areaM2,
+              areaSqFt: areaM2 * 10.7639,
               furniture: newFurn
             };
           }),
-          // Update endpoints of attached walls
+          // Shift attached walls
           walls: f.walls.map(w => {
-            if (!initialRoomState.room.wallIds.includes(w.id)) return w;
+            if (!movedWallIds.includes(w.id)) return w;
             const origWall = initialRoomState.walls.find(ow => ow.id === w.id);
             if (!origWall) return w;
             return {
@@ -358,7 +365,24 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
               startPoint: [snapToGrid(origWall.startPoint[0] + dx), snapToGrid(origWall.startPoint[1] + dy)],
               endPoint: [snapToGrid(origWall.endPoint[0] + dx), snapToGrid(origWall.endPoint[1] + dy)]
             };
-          })
+          }),
+          // Shift attached doors along moved walls
+          doors: f.doors.map(d => {
+            if (!movedWallIds.includes(d.wallId)) return d;
+            const pos = Array.isArray(d.position) ? [snapToGrid(d.position[0] + dx), snapToGrid(d.position[1] + dy)] as Vector2 : d.position;
+            return { ...d, position: pos };
+          }),
+          // Shift attached windows along moved walls
+          windows: f.windows.map(w => {
+            if (!movedWallIds.includes(w.wallId)) return w;
+            const pos = Array.isArray(w.position) ? [snapToGrid(w.position[0] + dx), snapToGrid(w.position[1] + dy)] as Vector2 : w.position;
+            return { ...w, position: pos };
+          }),
+          // Shift staircases inside room
+          staircases: (f.staircases || []).map(s => ({
+            ...s,
+            position: [snapToGrid(s.position[0] + dx), snapToGrid(s.position[1] + dy)] as Vector2
+          }))
         } : f)
       }));
     }
@@ -404,15 +428,38 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
               [newMaxX, newMaxY],
               [newMinX, newMaxY]
             ];
-            const w = newMaxX - newMinX;
-            const h = newMaxY - newMinY;
+            const areaM2 = (newMaxX - newMinX) * (newMaxY - newMinY);
 
             return {
               ...r,
               polygon: newPoly,
-              area: w * h,
-              areaSqFt: w * h * 10.7639
+              area: areaM2,
+              areaSqFt: areaM2 * 10.7639
             };
+          }),
+          // Update wall endpoints for room perimeter
+          walls: f.walls.map(w => {
+            const r = f.rooms.find(rm => rm.id === resizingRoomId);
+            if (!r || !r.wallIds.includes(w.id)) return w;
+            const poly = r.polygon;
+            const minX = Math.min(...poly.map(p => p[0]));
+            const maxX = Math.max(...poly.map(p => p[0]));
+            const minY = Math.min(...poly.map(p => p[1]));
+            const maxY = Math.max(...poly.map(p => p[1]));
+
+            // Update matching wall start and end points
+            let start = w.startPoint;
+            let end = w.endPoint;
+            if (Math.abs(w.startPoint[1] - minY) < 0.2 && Math.abs(w.endPoint[1] - minY) < 0.2) {
+              start = [minX, minY]; end = [maxX, minY];
+            } else if (Math.abs(w.startPoint[0] - maxX) < 0.2 && Math.abs(w.endPoint[0] - maxX) < 0.2) {
+              start = [maxX, minY]; end = [maxX, maxY];
+            } else if (Math.abs(w.startPoint[1] - maxY) < 0.2 && Math.abs(w.endPoint[1] - maxY) < 0.2) {
+              start = [maxX, maxY]; end = [minX, maxY];
+            } else if (Math.abs(w.startPoint[0] - minX) < 0.2 && Math.abs(w.endPoint[0] - minX) < 0.2) {
+              start = [minX, maxY]; end = [minX, minY];
+            }
+            return { ...w, startPoint: start, endPoint: end };
           })
         } : f)
       }));
@@ -438,6 +485,7 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
       addToast({ type: 'warning', message: 'Please place at least one room before viewing in 3D.' });
       return;
     }
+    addToast({ type: 'success', message: '2D CAD layout validated & converted to 3D model' });
     onSwitchTo3D();
   };
 

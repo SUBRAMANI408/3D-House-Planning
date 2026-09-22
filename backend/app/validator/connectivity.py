@@ -38,6 +38,43 @@ def is_wall_near_room(wall: Wall, room: Room) -> bool:
             return True
     return False
 
+def is_boundary_blocked_by_solid_wall(poly1: list[list[float]], poly2: list[list[float]], walls: list[Wall], doors: list[Door]) -> bool:
+    """Check if shared boundary segment between two rooms is blocked by a wall with no door."""
+    if not poly1 or not poly2 or not walls:
+        return False
+    doors_by_wall = {d.wall_id for d in doors}
+    for i in range(len(poly1)):
+        p1a, p1b = poly1[i], poly1[(i + 1) % len(poly1)]
+        for j in range(len(poly2)):
+            p2a, p2b = poly2[j], poly2[(j + 1) % len(poly2)]
+            if abs(p1a[0] - p1b[0]) < 0.15 and abs(p2a[0] - p2b[0]) < 0.15:
+                if abs(p1a[0] - p2a[0]) < 0.35:
+                    min_y1, max_y1 = sorted([p1a[1], p1b[1]])
+                    min_y2, max_y2 = sorted([p2a[1], p2b[1]])
+                    if max(min_y1, min_y2) < min(max_y1, max_y2) - 0.1:
+                        b_x = (p1a[0] + p2a[0]) / 2.0
+                        b_y_min, b_y_max = max(min_y1, min_y2), min(max_y1, max_y2)
+                        for w in walls:
+                            if abs(w.start[0] - w.end[0]) < 0.25 and abs(w.start[0] - b_x) < 0.35:
+                                w_y_min, w_y_max = sorted([w.start[1], w.end[1]])
+                                if max(w_y_min, b_y_min) < min(w_y_max, b_y_max) - 0.1:
+                                    if w.wall_id not in doors_by_wall:
+                                        return True
+            elif abs(p1a[1] - p1b[1]) < 0.15 and abs(p2a[1] - p2b[1]) < 0.15:
+                if abs(p1a[1] - p2a[1]) < 0.35:
+                    min_x1, max_x1 = sorted([p1a[0], p1b[0]])
+                    min_x2, max_x2 = sorted([p2a[0], p2b[0]])
+                    if max(min_x1, min_x2) < min(max_x1, max_x2) - 0.1:
+                        b_y = (p1a[1] + p2a[1]) / 2.0
+                        b_x_min, b_x_max = max(min_x1, min_x2), min(max_x1, max_x2)
+                        for w in walls:
+                            if abs(w.start[1] - w.end[1]) < 0.25 and abs(w.start[1] - b_y) < 0.35:
+                                w_x_min, w_x_max = sorted([w.start[0], w.end[0]])
+                                if max(w_x_min, b_x_min) < min(w_x_max, b_x_max) - 0.1:
+                                    if w.wall_id not in doors_by_wall:
+                                        return True
+    return False
+
 def check_connectivity(building: Building) -> list[ValidationError]:
     issues: list[ValidationError] = []
 
@@ -54,7 +91,7 @@ def check_connectivity(building: Building) -> list[ValidationError]:
             has_rooms = True
             G.add_node(room.room_id)
             for conn in room.connections:
-                to_id = conn.to_room_id or conn.target_room_id
+                to_id = conn.to_room_id or getattr(conn, 'target_room_id', None)
                 if to_id in room_ids:
                     G.add_edge(room.room_id, to_id)
 
@@ -63,33 +100,26 @@ def check_connectivity(building: Building) -> list[ValidationError]:
 
         walls_by_id = {w.wall_id: w for w in floor.walls}
 
-        # Build wall-to-room mapping
-        wall_to_rooms: dict[str, list[str]] = {}
-        for room in floor.rooms:
-            for w_id in room.wall_ids:
-                wall_to_rooms.setdefault(w_id, []).append(room.room_id)
-
-        for w_id, r_list in wall_to_rooms.items():
-            if len(r_list) > 1:
-                for i in range(len(r_list)):
-                    for j in range(i + 1, len(r_list)):
-                        G.add_edge(r_list[i], r_list[j])
-
-        # Connect rooms sharing a door on a wall
+        # Connect rooms sharing a door on a wall or near a door wall
         for door in floor.doors:
-            r_list = wall_to_rooms.get(door.wall_id, [])
-            if len(r_list) >= 2:
-                for i in range(len(r_list)):
-                    for j in range(i + 1, len(r_list)):
-                        G.add_edge(r_list[i], r_list[j])
+            door_wall = walls_by_id.get(door.wall_id)
+            near_rooms = [
+                room.room_id for room in floor.rooms
+                if door.wall_id in room.wall_ids or (door_wall and is_wall_near_room(door_wall, room))
+            ]
+            if len(near_rooms) >= 2:
+                for i in range(len(near_rooms)):
+                    for j in range(i + 1, len(near_rooms)):
+                        G.add_edge(near_rooms[i], near_rooms[j])
 
-        # Connect rooms sharing polygon boundaries (open-plan layouts)
+        # Connect rooms sharing polygon boundaries unless blocked by a solid doorless wall
         for i in range(len(floor.rooms)):
             r1 = floor.rooms[i]
             for j in range(i + 1, len(floor.rooms)):
                 r2 = floor.rooms[j]
                 if polygons_share_boundary(r1.polygon, r2.polygon):
-                    G.add_edge(r1.room_id, r2.room_id)
+                    if not is_boundary_blocked_by_solid_wall(r1.polygon, r2.polygon, floor.walls, floor.doors):
+                        G.add_edge(r1.room_id, r2.room_id)
 
         # Check entrance connection
         if building.entrance and building.entrance.floor_index == floor_idx:
