@@ -1,20 +1,24 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    host: true,
-    port: 5173,
-    proxy: {
-      '/api': 'http://localhost:8000',
-      '/auth': 'http://localhost:8000',
-      '/projects': 'http://localhost:8000',
-      '/templates': 'http://localhost:8000',
-      '/health': 'http://localhost:8000',
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  const target = env.VITE_API_URL || 'http://localhost:8000';
+
+  return {
+    plugins: [react()],
+    server: {
+      host: true,
+      port: 5173,
+      proxy: {
+        '/api': target,
+        '/auth': target,
+        '/projects': target,
+        '/templates': target,
+        '/health': target,
+      },
     },
-  },
   optimizeDeps: {
     include: ['three', '@react-three/fiber', '@react-three/drei'],
   },
@@ -29,4 +33,5 @@ export default defineConfig({
       },
     },
   },
+  };
 })

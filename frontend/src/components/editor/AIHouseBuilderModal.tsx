@@ -4,6 +4,7 @@ import { useUIStore } from '../../store/uiStore';
 import { apiClient } from '../../api/client';
 import type { Building, Room, Wall, Door, Window, Staircase, Roof, BuildingType, RoomType, Vector2 } from '../../schema/building.types';
 import { normalizeBuilding } from '../../schema/normalizeBuilding';
+import { validateBuildingLocal } from '../../validator/localValidator';
 
 export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { setBuilding } = useBuildingStore();
@@ -478,18 +479,20 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
           addToast({ type: 'success', message: 'AI House generated and validated successfully!' });
         })
         .catch(() => {
-          // If offline and backend validation is unreachable, verify basic local room geometry
-          const invalidRoom = finalBuilding.floors.flatMap(f => f.rooms).find(r => !r.polygon || r.polygon.length < 3);
-          if (invalidRoom) {
+          // If offline and backend validation is unreachable, use robust local validator
+          const localReport = validateBuildingLocal(finalBuilding);
+          
+          if (localReport.status === 'failed' || localReport.status === 'error') {
             setGenerating(false);
-            addToast({ type: 'error', message: 'Fallback room geometry invalid.' });
+            addToast({ type: 'error', message: `Fallback validation failed: ${localReport.issues[0]}` });
             return;
           }
+          
           setValidationReport({ status: 'passed', totalIssues: 0 });
           setGeneratedBuilding(finalBuilding);
           setGenerating(false);
           setStep(4);
-          addToast({ type: 'success', message: 'AI House generated locally.' });
+          addToast({ type: 'success', message: 'AI House generated and validated locally.' });
         });
     }, 1200);
   };

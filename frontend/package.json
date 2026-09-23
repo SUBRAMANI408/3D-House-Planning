@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "oxlint",
-    "preview": "vite preview"
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
@@ -16,6 +17,7 @@
     "axios": "^1.20.0",
     "konva": "^10.5.0",
     "leva": "^0.10.1",
+    "polygon-clipping": "^0.15.7",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-konva": "19.2.7",
@@ -24,6 +26,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
