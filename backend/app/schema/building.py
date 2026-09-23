@@ -222,6 +222,13 @@ class Roof(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class SlabGeometry(BaseModel):
+    outer_ring: list[list[float]] = Field(default_factory=list, alias="outerRing")
+    inner_rings: list[list[list[float]]] = Field(default_factory=list, alias="innerRings")
+
+    model_config = {"populate_by_name": True}
+
+
 class Floor(BaseModel):
     floor_index: int = Field(..., alias="floorIndex")
     label: str = "Floor"
@@ -234,6 +241,7 @@ class Floor(BaseModel):
     windows: list[Window] = []
     staircase: Optional[Staircase] = None
     staircases: list[Staircase] = Field(default_factory=list)
+    slab_geometry: Optional[list[SlabGeometry]] = Field(None, alias="slabGeometry")
     roof: Optional[Roof] = None
 
     model_config = {"populate_by_name": True}

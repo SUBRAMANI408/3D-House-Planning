@@ -107,6 +107,11 @@ export interface Roof {
   visible?: boolean;
 }
 
+export interface SlabGeometry {
+  outerRing: Vector2[];
+  innerRings: Vector2[][];
+}
+
 export interface Floor {
   index: number;
   name: string;
@@ -118,6 +123,7 @@ export interface Floor {
   doors: Door[];
   windows: Window[];
   staircases: Staircase[];
+  slabGeometry?: SlabGeometry[];
   roof?: Roof;
 }
 

@@ -4,6 +4,7 @@ import { useUIStore } from '../../store/uiStore';
 import { apiClient } from '../../api/client';
 import type { Building, BuildingType } from '../../schema/building.types';
 import { normalizeBuilding } from '../../schema/normalizeBuilding';
+import { computeSlabGeometries } from '../../utils/geometry';
 
 export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { setBuilding } = useBuildingStore();
@@ -72,7 +73,13 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
 
   const handleEditBuilding = () => {
     if (generatedBuilding) {
-      setBuilding(generatedBuilding);
+      try {
+        const validatedBuilding = computeSlabGeometries(generatedBuilding);
+        setBuilding(validatedBuilding);
+      } catch (e: any) {
+        addToast({ type: 'error', message: `Geometry Compilation Failed: ${e.message}` });
+        return;
+      }
       onClose();
       addToast({ type: 'info', message: 'Building loaded into 3D Editor. You can now edit all components!' });
     }

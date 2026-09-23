@@ -5,6 +5,7 @@ import { apiClient } from '../../api/client';
 import type { RoomType, FurnitureType, Wall, Room, Door, Window, FurnitureItem, Vector2 } from '../../schema/building.types';
 import { ROOM_COLORS, FURNITURE_DIMENSIONS } from '../../schema/building.types';
 import { normalizeBuilding } from '../../schema/normalizeBuilding';
+import { computeSlabGeometries } from '../../utils/geometry';
 
 type Tool = 'select' | 'wall' | 'room' | 'door' | 'window' | 'furniture';
 
@@ -531,9 +532,14 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
       return;
     }
 
-    setBuilding(canonicalBuilding);
-    addToast({ type: 'success', message: '2D CAD layout validated & converted to 3D model' });
-    onSwitchTo3D();
+    try {
+      const validatedBuilding = computeSlabGeometries(canonicalBuilding);
+      setBuilding(validatedBuilding);
+      addToast({ type: 'success', message: '2D CAD layout validated & converted to 3D model' });
+      onSwitchTo3D();
+    } catch (e: any) {
+      addToast({ type: 'error', message: `Geometry Validation Failed: ${e.message}` });
+    }
   };
 
   const toSvgX = (mX: number) => CENTER_OFFSET + mX * GRID_SIZE;
