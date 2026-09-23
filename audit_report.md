@@ -36,7 +36,7 @@ All components now operate from **one unified, validated, canonical building mod
 - **Offline Fallback Validation**: The incomplete local fallback generator has been completely removed. Offline building generation is now strictly prohibited when the backend is unavailable, ensuring no invalid structural topologies can enter the application state.
 - **Structural Floor Slab**: Structural boolean footprint unification and hole cutting (courtyards, staircases) has been formally decoupled from render-time logic. The CAD-to-3D pipeline strictly computes canonical `slabGeometry` (outer rings, inner rings) via robust polygon clipping. Explicit boolean failures visually reject the slab conversion with a user-facing error message (toast).
 - **Vite Dev Proxy Target**: The API proxy URL in `vite.config.ts` is now dynamically configurable using `VITE_API_URL`, supporting configurable backend routing.
-- **E2E Testing**: Basic Playwright E2E browser tests are added to verify the core workflow from Generation to 3D switching. (Browser execution depends on host browser libraries).
+- **E2E Testing**: Basic Playwright E2E browser tests are added to verify the core workflow from Generation to 3D switching. (Browser execution verified via local chromium install).
 - **Parametric AI Note**: The AI system behaves more like a parametric procedural generator. Advanced LLM spatial logic would require a separate spatial-reasoning service, but the current parametric fallback + geometric validation is robust and safe.
 
 The architecture is now structurally sound and safely validated against topological errors.
@@ -102,4 +102,4 @@ vite v8.3.0 building client environment for production...
 - [x] API client uses relative `/api` proxy paths for Vite dev server and production.
 - [x] True boolean polygon union for structural floor slabs via `polygon-clipping` with strict failure mode instead of silent fallback.
 - [x] Incomplete offline fallback generation prohibited to guarantee strict backend topology validation.
-- [x] Playwright E2E browser tests added but browser execution depends on host browser libraries.
+- [x] Playwright E2E browser tests fully executed and passed after Chromium installation.
