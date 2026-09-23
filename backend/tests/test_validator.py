@@ -6,7 +6,7 @@ from app.schema.building import (
 from app.validator.validator import validate_building
 from app.validator.connectivity import check_connectivity
 from app.validator.collision import check_collisions
-from app.validator.structural import check_structural
+from app.validator.structural import check_structural, normalize_slab_geometry
 from app.validator.room_sizing import check_room_sizing
 
 def make_simple_house() -> Building:
@@ -200,3 +200,96 @@ def test_staircase_hole_semantics():
     # Floor 1 (destination) SHOULD have a hole matching the stair footprint
     assert f1_slab.inner_rings and len(f1_slab.inner_rings) > 0
     assert len(f1_slab.inner_rings[0]) >= 3
+
+
+def test_staircase_footprint_inside_and_outside_room():
+    # Test valid inside footprint vs outside footprint error reporting
+    house = make_simple_house()
+    upper_floor = Floor(
+        floorIndex=1,
+        label="First Floor",
+        rooms=[
+            Room(
+                roomId="room_upper",
+                type=RoomType.bedroom,
+                polygon=[[0.0, 0.0], [4.0, 0.0], [4.0, 4.0], [0.0, 4.0]],
+                areaSqFt=172.0
+            )
+        ],
+        walls=[],
+        doors=[]
+    )
+    house.floors.append(upper_floor)
+
+    # 1. Fully outside staircase footprint
+    stair_outside = Staircase(
+        staircaseId="stair_out",
+        start_floor_index=0,
+        end_floor_index=1,
+        position=[10.0, 10.0],
+        width=1.2,
+        length=2.6,
+        footprint=[[10.0, 10.0], [12.0, 10.0], [12.0, 12.0], [10.0, 12.0]]
+    )
+    house.floors[0].staircases = [stair_outside]
+    
+    normalize_slab_geometry(house)
+    issues = check_structural(house)
+    errors = [i for i in issues if i.severity == "error"]
+    assert any("OUTSIDE_STAIR_FOOTPRINT" in e.code for e in errors)
+
+    # 2. Partially outside staircase footprint
+    stair_partial = Staircase(
+        staircaseId="stair_part",
+        start_floor_index=0,
+        end_floor_index=1,
+        position=[3.5, 3.5],
+        width=1.2,
+        length=2.6,
+        footprint=[[3.0, 3.0], [5.0, 3.0], [5.0, 5.0], [3.0, 5.0]]
+    )
+    house.floors[0].staircases = [stair_partial]
+    house.floors[0].slab_geometry = None
+    house.floors[1].slab_geometry = None
+    
+    normalize_slab_geometry(house)
+    issues = check_structural(house)
+    errors = [i for i in issues if i.severity == "error"]
+    assert any(e.code == "PARTIALLY_OUTSIDE_STAIR_FOOTPRINT" for e in errors)
+
+
+def test_staircase_footprint_consistency_and_rotation():
+    house = make_simple_house()
+    upper_floor = Floor(
+        floorIndex=1,
+        label="First Floor",
+        rooms=[
+            Room(
+                roomId="room_upper",
+                type=RoomType.bedroom,
+                polygon=[[0.0, 0.0], [8.0, 0.0], [8.0, 4.0], [0.0, 4.0]],
+                areaSqFt=344.0
+            )
+        ],
+        walls=[],
+        doors=[]
+    )
+    house.floors.append(upper_floor)
+
+    # Custom footprint matching derived position/width/length/rotation
+    stair = Staircase(
+        staircaseId="stair_rotated",
+        start_floor_index=0,
+        end_floor_index=1,
+        position=[2.0, 2.0],
+        width=1.0,
+        length=2.0,
+        rotation=1.5708,  # 90 degrees
+        footprint=[[1.0, 1.5], [3.0, 1.5], [3.0, 2.5], [1.0, 2.5]]
+    )
+    house.floors[0].staircases = [stair]
+    normalize_slab_geometry(house)
+    issues = check_structural(house)
+    errors = [i for i in issues if i.severity == "error"]
+    assert len(errors) == 0
+

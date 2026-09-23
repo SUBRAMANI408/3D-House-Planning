@@ -484,11 +484,18 @@ async def generate_ai_building(req: AIGenerateRequest) -> AIGenerateResponse:
 
 
 @router.post("/validate")
-async def validate_ai_building(building_data: dict[str, Any]) -> dict[str, Any]:
-    """Validate any client building json before loading into canvas."""
+async def validate_ai_building(building_data: dict[str, Any], normalize: bool = False) -> dict[str, Any]:
+    """
+    Validate any client building JSON before loading into canvas.
+    
+    API Sequence Contract:
+      - /api/ai/generate: Executes full canonicalization (parse → normalize → validate → return canonical model).
+      - /api/ai/validate: Validates submitted client data as-is (normalize=False by default).
+        If normalize=True, populates missing canonical slabGeometry before validating.
+    """
     try:
         b_obj = Building.model_validate(building_data)
-        val_res = validate_building(b_obj, normalize=False)
+        val_res = validate_building(b_obj, normalize=normalize)
         issues = val_res.errors + val_res.warnings
         issues_dict = [iss.model_dump(by_alias=True) for iss in issues]
         has_errors = len(val_res.errors) > 0

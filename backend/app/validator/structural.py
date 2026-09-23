@@ -1,9 +1,8 @@
 import math
 from app.schema.building import Building
 from app.validator.models import ValidationError, Severity
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, LineString
 from shapely.ops import unary_union
-
 
 def calculate_polygon_area(polygon: list[list[float]]) -> float:
     """Shoelace formula — returns area in m²."""
@@ -18,51 +17,26 @@ def calculate_polygon_area(polygon: list[list[float]]) -> float:
     return abs(area) / 2.0
 
 
-def _segment_overlap_fraction(ax1: float, ay1: float, ax2: float, ay2: float,
-                               bx1: float, by1: float, bx2: float, by2: float,
-                               tolerance: float = 0.6) -> float:
+def _calculate_wall_support_fraction(wall_line: LineString, supporting_union) -> float:
     """
-    Returns the fraction of wall-A that is within *tolerance* metres of any
-    part of wall-B.  Uses a projection-based approach rather than midpoint
-    proximity, so short wall segments near long supporting walls are detected.
+    Calculates exact continuous fraction of wall_line supported by 
+    load-bearing walls on floor below using Shapely segment intersection.
     """
-    # Direction of segment A
-    dx_a = ax2 - ax1
-    dy_a = ay2 - ay1
-    len_a = math.hypot(dx_a, dy_a)
-    if len_a < 1e-6:
+    if wall_line.length < 1e-6 or supporting_union.is_empty:
         return 0.0
-
-    # Sample 5 points evenly along wall-A and check each one's distance to wall-B
-    hits = 0
-    samples = 5
-    for k in range(samples):
-        t = k / (samples - 1)
-        px = ax1 + t * dx_a
-        py = ay1 + t * dy_a
-
-        # Distance from point (px, py) to segment B
-        dx_b = bx2 - bx1
-        dy_b = by2 - by1
-        len_b_sq = dx_b * dx_b + dy_b * dy_b
-        if len_b_sq < 1e-6:
-            dist = math.hypot(px - bx1, py - by1)
-        else:
-            tb = max(0.0, min(1.0, ((px - bx1) * dx_b + (py - by1) * dy_b) / len_b_sq))
-            closest_x = bx1 + tb * dx_b
-            closest_y = by1 + tb * dy_b
-            dist = math.hypot(px - closest_x, py - closest_y)
-
-        if dist <= tolerance:
-            hits += 1
-
-    return hits / samples
+    supported_part = wall_line.intersection(supporting_union)
+    return supported_part.length / wall_line.length
 
 
 def normalize_slab_geometry(building: Building):
     """
-    Computes and populates canonical slab_geometry on floors missing it,
-    so AI generations or templates can be structurally verified.
+    Computes and populates canonical slab_geometry on floors missing it.
+    
+    Canonicalization Sequence:
+      parse → normalize_slab_geometry (populate missing slabGeometry) → check_structural → return canonical model.
+    
+    Enforces complete staircase footprint containment within floor boundaries 
+    before performing slab boolean difference operations.
     Does NOT mutate if slab_geometry is already provided.
     """
     from app.schema.building import SlabGeometry
@@ -103,7 +77,8 @@ def normalize_slab_geometry(building: Building):
                 else:
                     sp = canonical_sp
                 
-                if sp.is_valid:
+                # Strict containment check: only subtract if footprint is valid and fully within floor slab
+                if sp.is_valid and sp.within(expected_slab):
                     expected_slab = expected_slab.difference(sp)
                     
         if expected_slab.is_empty:
@@ -250,7 +225,7 @@ def check_structural(building: Building) -> list[ValidationError]:
                         message=f'Floor {floor.floor_index} submitted slab has an invalid outer ring.',
                         floor_index=floor.floor_index
                     ))
-                    return issues  # Fail definitively immediately
+                    continue
                 submitted_outers.append(sg_poly)
                 
                 for inner in (slab.inner_rings or []):
@@ -263,7 +238,7 @@ def check_structural(building: Building) -> list[ValidationError]:
                                 message=f'Floor {floor.floor_index} submitted slab has an invalid inner ring (hole).',
                                 floor_index=floor.floor_index
                             ))
-                            return issues  # Fail definitively immediately
+                            continue
                         
                         if not ir_poly.within(sg_poly):
                             issues.append(ValidationError(
@@ -293,8 +268,10 @@ def check_structural(building: Building) -> list[ValidationError]:
                 
             # Full topological comparison via symmetric difference
             sym_diff = submitted_slab.symmetric_difference(expected_slab)
-            # Use scale-aware tolerance: max(absolute_min, expected_area * relative_tolerance)
-            tolerance = max(0.2, expected_slab.area * 0.05)
+            # Scale-aware tolerance formula: max(absolute_min, expected_area * relative_tolerance)
+            abs_tolerance = 0.1  # 0.1 m² minimum precision tolerance
+            rel_tolerance = 0.02 # 2% relative area tolerance
+            tolerance = max(abs_tolerance, expected_slab.area * rel_tolerance)
             
             if sym_diff.area > tolerance:
                 issues.append(ValidationError(
@@ -348,30 +325,24 @@ def check_structural(building: Building) -> list[ValidationError]:
                 floor_index=floor_idx
             ))
 
-        # 2. Load-bearing wall support check — geometric segment overlap
-        walls_below = floor_below.walls
+        # 2. Load-bearing wall support check — continuous Shapely segment buffering
+        walls_below = [w for w in floor_below.walls if w.is_load_bearing]
+        supporting_lines = []
+        for wb in walls_below:
+            bl = LineString([(wb.start[0], wb.start[1]), (wb.end[0], wb.end[1])])
+            if bl.length >= 1e-6:
+                supporting_lines.append(bl.buffer(0.3))  # 0.3m buffer radius = 0.6m support tolerance width
+
+        supporting_union = unary_union(supporting_lines) if supporting_lines else Polygon()
 
         for wall in floor.walls:
             if not wall.is_load_bearing:
                 continue
 
-            ax1, ay1 = wall.start[0], wall.start[1]
-            ax2, ay2 = wall.end[0], wall.end[1]
+            wall_line = LineString([(wall.start[0], wall.start[1]), (wall.end[0], wall.end[1])])
+            best_overlap = _calculate_wall_support_fraction(wall_line, supporting_union)
 
-            # Find the best-supporting wall below using segment overlap fraction
-            best_overlap = 0.0
-            for wb in walls_below:
-                bx1, by1 = wb.start[0], wb.start[1]
-                bx2, by2 = wb.end[0], wb.end[1]
-                overlap = _segment_overlap_fraction(ax1, ay1, ax2, ay2,
-                                                    bx1, by1, bx2, by2,
-                                                    tolerance=0.6)
-                if overlap > best_overlap:
-                    best_overlap = overlap
-                    if best_overlap >= 0.5:
-                        break  # Sufficient support found early
-
-            # Require ≥50% of wall length to be supported
+            # Require >=50% of wall length to be supported
             if best_overlap < 0.5:
                 issues.append(ValidationError(
                     code='FLOATING_LOAD_BEARING_WALL',
