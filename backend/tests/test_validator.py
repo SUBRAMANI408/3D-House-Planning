@@ -154,3 +154,47 @@ def test_room_sizing_too_small():
     # Full validate_building call should be valid (warnings only, no hard errors)
     res = validate_building(house)
     assert res.is_valid is True
+
+def test_staircase_hole_semantics():
+    house = make_simple_house()
+    # Add a second floor
+    upper_floor = Floor(
+        floorIndex=1,
+        label="First Floor",
+        rooms=[
+            Room(
+                roomId="room_upper",
+                type=RoomType.bedroom,
+                polygon=[[0.0, 0.0], [4.0, 0.0], [4.0, 4.0], [0.0, 4.0]],
+                areaSqFt=172.0
+            )
+        ],
+        walls=[],
+        doors=[]
+    )
+    house.floors.append(upper_floor)
+    
+    # Add a staircase starting on floor 0, ending on floor 1
+    stair = Staircase(
+        staircaseId="stair1",
+        start_floor_index=0,
+        end_floor_index=1,
+        footprint=[[1.0, 1.0], [3.0, 1.0], [3.0, 3.0], [1.0, 3.0]]
+    )
+    house.floors[0].staircases = [stair]
+    
+    # Check structural rules
+    issues = check_structural(house)
+    errors = [i for i in issues if i.severity == "error"]
+    assert len(errors) == 0
+    
+    # After check_structural runs with missing slabGeometry, the canonical slabs are populated
+    f0_slab = house.floors[0].slab_geometry[0]
+    f1_slab = house.floors[1].slab_geometry[0]
+    
+    # Floor 0 (origin) should NOT have a hole (inner_rings should be empty or nonexistent)
+    assert not f0_slab.inner_rings or len(f0_slab.inner_rings) == 0
+    
+    # Floor 1 (destination) SHOULD have a hole matching the stair footprint
+    assert f1_slab.inner_rings and len(f1_slab.inner_rings) > 0
+    assert len(f1_slab.inner_rings[0]) >= 3
