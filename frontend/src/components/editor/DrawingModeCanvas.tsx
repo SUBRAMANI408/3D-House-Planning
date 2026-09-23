@@ -4,6 +4,7 @@ import { useUIStore } from '../../store/uiStore';
 import { apiClient } from '../../api/client';
 import type { RoomType, FurnitureType, Wall, Room, Door, Window, FurnitureItem, Vector2 } from '../../schema/building.types';
 import { ROOM_COLORS, FURNITURE_DIMENSIONS } from '../../schema/building.types';
+import { normalizeBuilding } from '../../schema/normalizeBuilding';
 
 type Tool = 'select' | 'wall' | 'room' | 'door' | 'window' | 'furniture';
 
@@ -65,7 +66,7 @@ const projectPointToSegment = (pt: Vector2, segStart: Vector2, segEnd: Vector2) 
 };
 
 export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSwitchTo3D }) => {
-  const { building, activeFloorIndex, selectedObjectId, selectObject, updateBuilding } = useBuildingStore();
+  const { building, setBuilding, activeFloorIndex, selectedObjectId, selectObject, updateBuilding } = useBuildingStore();
   const { addToast } = useUIStore();
 
   const [activeTool, setActiveTool] = useState<Tool>('select');
@@ -297,6 +298,35 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
     const minX = Math.min(...r.polygon.map(p => p[0]));
     const minY = Math.min(...r.polygon.map(p => p[1]));
 
+    // Handle shared wall topology safely: if wall is shared with another room, duplicate it for r
+    const otherRooms = currentFloor.rooms.filter(other => other.id !== r.id);
+    const sharedWallIds = r.wallIds.filter(wId => otherRooms.some(other => other.wallIds.includes(wId)));
+
+    if (sharedWallIds.length > 0) {
+      const newWalls: Wall[] = [];
+      const updatedWallIds = [...r.wallIds];
+      sharedWallIds.forEach((sId, idx) => {
+        const origW = currentFloor.walls.find(w => w.id === sId);
+        if (origW) {
+          const freshId = `${sId}-drag-${Date.now()}-${idx}`;
+          newWalls.push({ ...origW, id: freshId });
+          const uIdx = updatedWallIds.indexOf(sId);
+          if (uIdx !== -1) updatedWallIds[uIdx] = freshId;
+        }
+      });
+
+      updateBuilding(b => ({
+        ...b,
+        floors: b.floors.map(f => f.index === activeFloorIndex ? {
+          ...f,
+          rooms: f.rooms.map(rm => rm.id === r.id ? { ...rm, wallIds: updatedWallIds } : rm),
+          walls: [...f.walls, ...newWalls]
+        } : f)
+      }));
+
+      r = { ...r, wallIds: updatedWallIds };
+    }
+
     const assocWalls = currentFloor.walls.filter(w => r.wallIds.includes(w.id));
     setInitialRoomState({
       room: JSON.parse(JSON.stringify(r)),
@@ -485,17 +515,23 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
       return;
     }
 
+    // Canonical conversion stage first
+    const canonicalBuilding = normalizeBuilding(building);
+
     try {
-      const res = await apiClient.post('/api/ai/validate', building);
-      if (res.data && res.data.status === 'failed') {
+      const res = await apiClient.post('/api/ai/validate', canonicalBuilding);
+      if (res.data && (res.data.status === 'failed' || res.data.status === 'error')) {
         const errMsgs = (res.data.issues || []).filter((i: any) => i.severity === 'error').map((i: any) => i.message).join(', ');
         addToast({ type: 'error', message: `CAD model validation failed: ${errMsgs || 'Invalid room geometry'}` });
         return;
       }
     } catch (e) {
-      console.warn('Backend validation check skipped offline:', e);
+      console.warn('Backend validation check unavailable offline:', e);
+      addToast({ type: 'error', message: 'Validation service unavailable. Cannot verify 3D CAD layout while offline.' });
+      return;
     }
 
+    setBuilding(canonicalBuilding);
     addToast({ type: 'success', message: '2D CAD layout validated & converted to 3D model' });
     onSwitchTo3D();
   };

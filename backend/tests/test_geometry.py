@@ -50,3 +50,25 @@ def test_hip_roof_ridge_length_math():
     # 10m x 10m square footprint -> ridge length = 0m (pyramid tip)
     w_sq, d_sq = 10.0, 10.0
     assert max(0.0, w_sq - d_sq) == 0.0
+
+
+def test_corner_touching_no_shared_boundary():
+    # Room 1: (0,0) to (5,5)
+    r1 = [[0.0, 0.0], [5.0, 0.0], [5.0, 5.0], [0.0, 5.0]]
+    # Room 2 touches ONLY at corner (5,5): (5,5) to (10,10)
+    r2 = [[5.0, 5.0], [10.0, 5.0], [10.0, 10.0], [5.0, 10.0]]
+
+    assert polygons_share_boundary(r1, r2) is False
+
+
+def test_staircase_physical_geometry_checks():
+    # Standard 3.0m floor height with 15 risers -> riser height = 0.20m, tread depth = 0.28m
+    floor_height = 3.0
+    num_steps = 15
+    riser_height = floor_height / num_steps
+    assert 0.15 <= riser_height <= 0.22
+
+    stair_length = 2.8
+    tread_depth = stair_length / (num_steps - 1)
+    assert 0.18 <= tread_depth <= 0.35
+

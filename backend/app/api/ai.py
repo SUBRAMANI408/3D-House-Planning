@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/ai", tags=["ai"])
 
 
 class AIGenerateRequest(BaseModel):
-    prompt: str = Field(..., example="3 BHK modern minimalist house with 2 floors, master suite, garage, and balcony")
+    prompt: str = Field(..., json_schema_extra={"example": "3 BHK modern minimalist house with 2 floors, master suite, garage, and balcony"})
     building_type: str = Field("house", alias="buildingType")
     floors_count: int = Field(2, alias="floorsCount")
     bedrooms_count: int = Field(3, alias="bedroomsCount")

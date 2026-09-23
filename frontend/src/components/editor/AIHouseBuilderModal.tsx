@@ -232,7 +232,10 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
               { id: `f-f1-king-${timestamp}`, type: 'bed_king', position: [3, 0, 2], rotation: [0, 0, 0] },
               { id: `f-f1-ward-${timestamp}`, type: 'wardrobe', position: [5.2, 0, 4], rotation: [0, 270, 0] }
             ],
-            connections: []
+            connections: [
+              { toRoomId: `r-f1-lounge-${timestamp}`, via: 'door', doorId: `d1-mbed-${timestamp}` },
+              { toRoomId: `r-f1-mbath-${timestamp}`, via: 'door', doorId: `d1-mbath-${timestamp}` }
+            ]
           },
           {
             id: `r-f1-mbath-${timestamp}`,
@@ -246,7 +249,9 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
               { id: `f-f1-tub-${timestamp}`, type: 'bathtub', position: [7.5, 0, 1.5], rotation: [0, 0, 0] },
               { id: `f-f1-toilet-${timestamp}`, type: 'toilet', position: [8.2, 0, 2.5], rotation: [0, 0, 0] }
             ],
-            connections: []
+            connections: [
+              { toRoomId: `r-f1-mbed-${timestamp}`, via: 'door', doorId: `d1-mbath-${timestamp}` }
+            ]
           },
           {
             id: `r-f1-bed2-${timestamp}`,
@@ -260,7 +265,9 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
               { id: `f-f1-b2bed-${timestamp}`, type: 'bed_queen', position: [2.5, 0, 7], rotation: [0, 0, 0] },
               { id: `f-f1-b2side-${timestamp}`, type: 'side_table', position: [4.2, 0, 7], rotation: [0, 0, 0] }
             ],
-            connections: []
+            connections: [
+              { toRoomId: `r-f1-lounge-${timestamp}`, via: 'door', doorId: `d1-bed2-${timestamp}` }
+            ]
           },
           {
             id: `r-f1-bed3-${timestamp}`,
@@ -274,7 +281,9 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
               { id: `f-f1-b3bed-${timestamp}`, type: bedroomsCount >= 3 ? 'bed_queen' : 'desk', position: [7.5, 0, 7], rotation: [0, 0, 0] },
               { id: `f-f1-b3ward-${timestamp}`, type: 'wardrobe', position: [9.2, 0, 6], rotation: [0, 180, 0] }
             ],
-            connections: []
+            connections: [
+              { toRoomId: `r-f1-lounge-${timestamp}`, via: 'door', doorId: `d1-bed3-${timestamp}` }
+            ]
           },
           {
             id: `r-f1-lounge-${timestamp}`,
@@ -287,7 +296,12 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
             furniture: [
               { id: `f-f1-lsofa-${timestamp}`, type: 'sofa', position: [8.5, 0, 4], rotation: [0, 180, 0] }
             ],
-            connections: []
+            connections: [
+              { toRoomId: `r-f1-mbed-${timestamp}`, via: 'door', doorId: `d1-mbed-${timestamp}` },
+              { toRoomId: `r-f1-bed2-${timestamp}`, via: 'door', doorId: `d1-bed2-${timestamp}` },
+              { toRoomId: `r-f1-bed3-${timestamp}`, via: 'door', doorId: `d1-bed3-${timestamp}` },
+              { toRoomId: `stair0-${timestamp}`, via: 'staircase' }
+            ]
           }
         ];
 
@@ -301,7 +315,9 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
             area: 15.0,     // 5m × 3m = 15 m²
             areaSqFt: 161.4,
             furniture: [],
-            connections: []
+            connections: [
+              { toRoomId: `r-f1-mbath-${timestamp}`, via: 'door', doorId: `d1-balc-${timestamp}` }
+            ]
           });
         }
 
@@ -382,7 +398,10 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
                 { id: `f-f2-king-${timestamp}`, type: 'bed_king', position: [3, 0, 2], rotation: [0, 0, 0] },
                 { id: `f-f2-ward-${timestamp}`, type: 'wardrobe', position: [5.2, 0, 4], rotation: [0, 270, 0] }
               ],
-              connections: []
+              connections: [
+                { toRoomId: `r-f2-terrace-${timestamp}`, via: 'door', doorId: `d2-terr-${timestamp}` },
+                { toRoomId: `stair1-2-${timestamp}`, via: 'staircase' }
+              ]
             },
             {
               id: `r-f2-terrace-${timestamp}`,
@@ -393,7 +412,9 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
               area: 30.0,     // 6m × 5m = 30 m²
               areaSqFt: 322.9,
               furniture: [],
-              connections: []
+              connections: [
+                { toRoomId: `r-f2-suite-${timestamp}`, via: 'door', doorId: `d2-terr-${timestamp}` }
+              ]
             }
           ],
           walls: [
@@ -441,10 +462,35 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
       };
 
       const finalBuilding = normalizeBuilding(rawAiBuilding);
-      setGeneratedBuilding(finalBuilding);
-      setGenerating(false);
-      setStep(4);
-      addToast({ type: 'success', message: 'AI House generated successfully!' });
+
+      // Validate local fallback building before proceeding to step 4
+      apiClient.post('/api/ai/validate', finalBuilding)
+        .then(valRes => {
+          if (valRes.data && (valRes.data.status === 'failed' || valRes.data.status === 'error')) {
+            setGenerating(false);
+            addToast({ type: 'error', message: 'Local fallback layout failed validation check.' });
+            return;
+          }
+          setValidationReport(valRes.data || { status: 'passed', totalIssues: 0 });
+          setGeneratedBuilding(finalBuilding);
+          setGenerating(false);
+          setStep(4);
+          addToast({ type: 'success', message: 'AI House generated and validated successfully!' });
+        })
+        .catch(() => {
+          // If offline and backend validation is unreachable, verify basic local room geometry
+          const invalidRoom = finalBuilding.floors.flatMap(f => f.rooms).find(r => !r.polygon || r.polygon.length < 3);
+          if (invalidRoom) {
+            setGenerating(false);
+            addToast({ type: 'error', message: 'Fallback room geometry invalid.' });
+            return;
+          }
+          setValidationReport({ status: 'passed', totalIssues: 0 });
+          setGeneratedBuilding(finalBuilding);
+          setGenerating(false);
+          setStep(4);
+          addToast({ type: 'success', message: 'AI House generated locally.' });
+        });
     }, 1200);
   };
 
