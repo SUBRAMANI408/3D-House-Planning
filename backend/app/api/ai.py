@@ -382,9 +382,9 @@ async def generate_ai_building(req: AIGenerateRequest) -> AIGenerateResponse:
         end_s1 = 14.0 if effective_balcony else 11.0
         floor1_walls = [
             {"id": w1_s1, "startPoint": [0.0, 0.0], "endPoint": [end_s1, 0.0], "thickness": 0.25, "height": 3.0, "isExterior": True, "isLoadBearing": True},
-            {"id": w1_e1, "startPoint": [end_s1, 0.0], "endPoint": [end_s1, 3.0], "thickness": 0.25, "height": 3.0, "isExterior": True, "isLoadBearing": True},
-            {"id": w1_e2, "startPoint": [end_s1, 3.0], "endPoint": [11.0, 3.0], "thickness": 0.25, "height": 3.0, "isExterior": True, "isLoadBearing": True},
-            {"id": w1_n1, "startPoint": [10.0, 5.0], "endPoint": [10.0, 9.0], "thickness": 0.25, "height": 3.0, "isExterior": True, "isLoadBearing": True},
+            {"id": w1_e1, "startPoint": [end_s1, 0.0], "endPoint": [end_s1, 3.0], "thickness": 0.25, "height": 3.0, "isExterior": True, "isLoadBearing": False},
+            {"id": w1_e2, "startPoint": [end_s1, 3.0], "endPoint": [11.0, 3.0], "thickness": 0.25, "height": 3.0, "isExterior": True, "isLoadBearing": False},
+            {"id": w1_n1, "startPoint": [10.0, 5.0], "endPoint": [10.0, 9.0], "thickness": 0.25, "height": 3.0, "isExterior": True, "isLoadBearing": False},
             {"id": w1_n2, "startPoint": [10.0, 9.0], "endPoint": [0.0, 9.0], "thickness": 0.25, "height": 3.0, "isExterior": True, "isLoadBearing": True},
             {"id": w1_w1, "startPoint": [0.0, 9.0], "endPoint": [0.0, 0.0], "thickness": 0.25, "height": 3.0, "isExterior": True, "isLoadBearing": True},
             {"id": w1_i1, "startPoint": [6.0, 0.0], "endPoint": [6.0, 5.0], "thickness": 0.15, "height": 3.0, "isExterior": False, "isLoadBearing": True},
@@ -464,9 +464,10 @@ async def generate_ai_building(req: AIGenerateRequest) -> AIGenerateResponse:
     # Validate generated model
     try:
         b_obj = Building.model_validate(raw_building)
-        issues = validate_building(b_obj)
+        val_res = validate_building(b_obj)
+        issues = val_res.errors + val_res.warnings
         issues_dict = [iss.model_dump(by_alias=True) for iss in issues]
-        has_errors = any(iss.severity == "error" for iss in issues)
+        has_errors = len(val_res.errors) > 0
         val_status = "failed" if has_errors else "passed"
     except Exception as e:
         val_status = "error"
@@ -486,9 +487,10 @@ async def validate_ai_building(building_data: dict[str, Any]) -> dict[str, Any]:
     """Validate any client building json before loading into canvas."""
     try:
         b_obj = Building.model_validate(building_data)
-        issues = validate_building(b_obj)
+        val_res = validate_building(b_obj)
+        issues = val_res.errors + val_res.warnings
         issues_dict = [iss.model_dump(by_alias=True) for iss in issues]
-        has_errors = any(iss.severity == "error" for iss in issues)
+        has_errors = len(val_res.errors) > 0
         return {
             "status": "failed" if has_errors else "passed",
             "issues": issues_dict,

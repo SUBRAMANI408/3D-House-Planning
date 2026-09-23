@@ -29,6 +29,7 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
 
   const handleGenerate = async () => {
     setGenerating(true);
+    setValidationReport(null);
     try {
       // Call backend AI generation & pre-validation service
       const res = await apiClient.post('/api/ai/generate', {
@@ -43,16 +44,24 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
       });
 
       if (res.data && res.data.building) {
+        const valStatus = res.data.validation?.status || 'passed';
+        setValidationReport(res.data.validation || { status: 'passed', totalIssues: 0 });
+
+        if (valStatus === 'failed' || valStatus === 'error') {
+          setGenerating(false);
+          addToast({ type: 'error', message: 'Generated layout failed building validation. Please adjust input options.' });
+          return;
+        }
+
         const norm = normalizeBuilding(res.data.building);
         setGeneratedBuilding(norm);
-        setValidationReport(res.data.validation || { status: 'passed', totalIssues: 0 });
         setGenerating(false);
         setStep(4);
         addToast({ type: 'success', message: 'AI House generated and validated successfully!' });
         return;
       }
     } catch (err) {
-      console.warn('Backend AI service fallback to local builder:', err);
+      console.warn('Backend AI endpoint unavailable, executing client validated builder:', err);
     }
 
     // Local client generator with full room connection graph & shoelace area

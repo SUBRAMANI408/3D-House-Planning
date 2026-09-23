@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useBuildingStore } from '../../store/buildingStore';
 import { useUIStore } from '../../store/uiStore';
+import { apiClient } from '../../api/client';
 import type { RoomType, FurnitureType, Wall, Room, Door, Window, FurnitureItem, Vector2 } from '../../schema/building.types';
 import { ROOM_COLORS, FURNITURE_DIMENSIONS } from '../../schema/building.types';
 
@@ -378,11 +379,14 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
             const pos = Array.isArray(w.position) ? [snapToGrid(w.position[0] + dx), snapToGrid(w.position[1] + dy)] as Vector2 : w.position;
             return { ...w, position: pos };
           }),
-          // Shift staircases inside room
-          staircases: (f.staircases || []).map(s => ({
-            ...s,
-            position: [snapToGrid(s.position[0] + dx), snapToGrid(s.position[1] + dy)] as Vector2
-          }))
+          // Shift staircases strictly inside dragged room
+          staircases: (f.staircases || []).map(s => {
+            if (!s.position || !isPointInPolygon(s.position, origPoly)) return s;
+            return {
+              ...s,
+              position: [snapToGrid(s.position[0] + dx), snapToGrid(s.position[1] + dy)] as Vector2
+            };
+          })
         } : f)
       }));
     }
@@ -390,6 +394,42 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
     // ── Handle Room Resizing ──────────────────────────────────────────────
     if (resizingRoomId && resizingCornerIndex !== null) {
       const [mx, my] = coords;
+      const rToResize = currentFloor.rooms.find(rm => rm.id === resizingRoomId);
+      if (!rToResize) return;
+
+      const poly = [...rToResize.polygon];
+      const minX = Math.min(...poly.map(p => p[0]));
+      const maxX = Math.max(...poly.map(p => p[0]));
+      const minY = Math.min(...poly.map(p => p[1]));
+      const maxY = Math.max(...poly.map(p => p[1]));
+
+      let newMinX = minX;
+      let newMaxX = maxX;
+      let newMinY = minY;
+      let newMaxY = maxY;
+
+      if (resizingCornerIndex === 0) { // TL
+        newMinX = Math.min(mx, maxX - 1.0);
+        newMinY = Math.min(my, maxY - 1.0);
+      } else if (resizingCornerIndex === 1) { // TR
+        newMaxX = Math.max(mx, minX + 1.0);
+        newMinY = Math.min(my, maxY - 1.0);
+      } else if (resizingCornerIndex === 2) { // BR
+        newMaxX = Math.max(mx, minX + 1.0);
+        newMaxY = Math.max(my, minY + 1.0);
+      } else if (resizingCornerIndex === 3) { // BL
+        newMinX = Math.min(mx, maxX - 1.0);
+        newMaxY = Math.max(my, minY + 1.0);
+      }
+
+      const newPoly: Vector2[] = [
+        [newMinX, newMinY],
+        [newMaxX, newMinY],
+        [newMaxX, newMaxY],
+        [newMinX, newMaxY]
+      ];
+      const areaM2 = (newMaxX - newMinX) * (newMaxY - newMinY);
+      const resizedWallIds = rToResize.wallIds;
 
       updateBuilding(b => ({
         ...b,
@@ -397,39 +437,6 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
           ...f,
           rooms: f.rooms.map(r => {
             if (r.id !== resizingRoomId) return r;
-            const poly = [...r.polygon];
-            const minX = Math.min(...poly.map(p => p[0]));
-            const maxX = Math.max(...poly.map(p => p[0]));
-            const minY = Math.min(...poly.map(p => p[1]));
-            const maxY = Math.max(...poly.map(p => p[1]));
-
-            let newMinX = minX;
-            let newMaxX = maxX;
-            let newMinY = minY;
-            let newMaxY = maxY;
-
-            if (resizingCornerIndex === 0) { // TL
-              newMinX = Math.min(mx, maxX - 1.0);
-              newMinY = Math.min(my, maxY - 1.0);
-            } else if (resizingCornerIndex === 1) { // TR
-              newMaxX = Math.max(mx, minX + 1.0);
-              newMinY = Math.min(my, maxY - 1.0);
-            } else if (resizingCornerIndex === 2) { // BR
-              newMaxX = Math.max(mx, minX + 1.0);
-              newMaxY = Math.max(my, minY + 1.0);
-            } else if (resizingCornerIndex === 3) { // BL
-              newMinX = Math.min(mx, maxX - 1.0);
-              newMaxY = Math.max(my, minY + 1.0);
-            }
-
-            const newPoly: Vector2[] = [
-              [newMinX, newMinY],
-              [newMaxX, newMinY],
-              [newMaxX, newMaxY],
-              [newMinX, newMaxY]
-            ];
-            const areaM2 = (newMaxX - newMinX) * (newMaxY - newMinY);
-
             return {
               ...r,
               polygon: newPoly,
@@ -437,27 +444,19 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
               areaSqFt: areaM2 * 10.7639
             };
           }),
-          // Update wall endpoints for room perimeter
+          // Update wall endpoints for resized room perimeter using NEW polygon bounds
           walls: f.walls.map(w => {
-            const r = f.rooms.find(rm => rm.id === resizingRoomId);
-            if (!r || !r.wallIds.includes(w.id)) return w;
-            const poly = r.polygon;
-            const minX = Math.min(...poly.map(p => p[0]));
-            const maxX = Math.max(...poly.map(p => p[0]));
-            const minY = Math.min(...poly.map(p => p[1]));
-            const maxY = Math.max(...poly.map(p => p[1]));
-
-            // Update matching wall start and end points
+            if (!resizedWallIds.includes(w.id)) return w;
             let start = w.startPoint;
             let end = w.endPoint;
-            if (Math.abs(w.startPoint[1] - minY) < 0.2 && Math.abs(w.endPoint[1] - minY) < 0.2) {
-              start = [minX, minY]; end = [maxX, minY];
-            } else if (Math.abs(w.startPoint[0] - maxX) < 0.2 && Math.abs(w.endPoint[0] - maxX) < 0.2) {
-              start = [maxX, minY]; end = [maxX, maxY];
-            } else if (Math.abs(w.startPoint[1] - maxY) < 0.2 && Math.abs(w.endPoint[1] - maxY) < 0.2) {
-              start = [maxX, maxY]; end = [minX, maxY];
-            } else if (Math.abs(w.startPoint[0] - minX) < 0.2 && Math.abs(w.endPoint[0] - minX) < 0.2) {
-              start = [minX, maxY]; end = [minX, minY];
+            if (Math.abs(w.startPoint[1] - minY) < 0.3 && Math.abs(w.endPoint[1] - minY) < 0.3) {
+              start = [newMinX, newMinY]; end = [newMaxX, newMinY];
+            } else if (Math.abs(w.startPoint[0] - maxX) < 0.3 && Math.abs(w.endPoint[0] - maxX) < 0.3) {
+              start = [newMaxX, newMinY]; end = [newMaxX, newMaxY];
+            } else if (Math.abs(w.startPoint[1] - maxY) < 0.3 && Math.abs(w.endPoint[1] - maxY) < 0.3) {
+              start = [newMaxX, newMaxY]; end = [newMinX, newMaxY];
+            } else if (Math.abs(w.startPoint[0] - minX) < 0.3 && Math.abs(w.endPoint[0] - minX) < 0.3) {
+              start = [newMinX, newMaxY]; end = [newMinX, newMinY];
             }
             return { ...w, startPoint: start, endPoint: end };
           })
@@ -480,11 +479,23 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
   };
 
   // Convert CAD model to 3D validated building and switch views
-  const handleConvertAndSwitch = () => {
+  const handleConvertAndSwitch = async () => {
     if (currentFloor.rooms.length === 0) {
       addToast({ type: 'warning', message: 'Please place at least one room before viewing in 3D.' });
       return;
     }
+
+    try {
+      const res = await apiClient.post('/api/ai/validate', building);
+      if (res.data && res.data.status === 'failed') {
+        const errMsgs = (res.data.issues || []).filter((i: any) => i.severity === 'error').map((i: any) => i.message).join(', ');
+        addToast({ type: 'error', message: `CAD model validation failed: ${errMsgs || 'Invalid room geometry'}` });
+        return;
+      }
+    } catch (e) {
+      console.warn('Backend validation check skipped offline:', e);
+    }
+
     addToast({ type: 'success', message: '2D CAD layout validated & converted to 3D model' });
     onSwitchTo3D();
   };
