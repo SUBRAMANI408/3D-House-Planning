@@ -296,7 +296,7 @@ export const BuildingRenderer: React.FC = () => {
         return (
           <group key={`floor-${floor.floorIdx}`} name={`floor-${floor.floorIdx}`} position={[0, floor.elevation, 0]}>
             {/* ── Floor Structural Base Slab ──────────────────────────────────── */}
-            <FloorSlabMesh rooms={floor.rooms} staircases={floor.staircases} />
+            <FloorSlabMesh rooms={floor.rooms} staircases={idx > 0 ? building.floors[idx - 1].staircases : []} />
 
             {/* ── Room Surfaces ──────────────────────────────────────────────── */}
             {floor.rooms.map((room) => (
@@ -403,32 +403,57 @@ const FloorSlabMesh: React.FC<{ rooms: Room[]; staircases?: Staircase[] }> = ({ 
     }
 
     // Process staircases via robust boolean difference
+    let isValid = true;
     staircases.forEach(stair => {
+      if (!isValid) return;
+
       const sx = stair.position[0];
       const sz = stair.position[1];
       const sw = stair.width ?? 1.2;
       const sl = stair.length ?? 2.6;
+      const rot = stair.rotation ?? 0;
 
-      const stairPoly: [number, number][] = [
-        [sx - sw / 2, -(sz - sl / 2)],
-        [sx + sw / 2, -(sz - sl / 2)],
-        [sx + sw / 2, -(sz + sl / 2)],
-        [sx - sw / 2, -(sz + sl / 2)],
-        [sx - sw / 2, -(sz - sl / 2)]
+      // Unrotated corners relative to center
+      const corners = [
+        [-sw / 2, -sl / 2],
+        [sw / 2, -sl / 2],
+        [sw / 2, sl / 2],
+        [-sw / 2, sl / 2]
       ];
+
+      const stairPoly: [number, number][] = corners.map(c => {
+        const x = c[0] * Math.cos(rot) - c[1] * Math.sin(rot);
+        const z = c[0] * Math.sin(rot) + c[1] * Math.cos(rot);
+        return [sx + x, -(sz + z)] as [number, number];
+      });
+      // Close the loop
+      stairPoly.push(stairPoly[0]);
       
       const stairRing: any = [stairPoly];
       
       try {
-        const intersection = polygonClipping.intersection(unionPolys, stairRing);
-        // Only subtract if it's actually contained/intersecting
-        if (intersection.length > 0) {
-          unionPolys = polygonClipping.difference(unionPolys, stairRing);
+        const intersection = polygonClipping.intersection(stairRing, unionPolys);
+        if (intersection.length === 0) {
+          // Completely outside, ignore
+          return;
         }
+
+        const outsideParts = polygonClipping.difference(stairRing, unionPolys);
+        if (outsideParts.length > 0) {
+          console.error('Geometry Validation Error: Staircase footprint partially intersects the floor slab boundaries.');
+          isValid = false;
+          return;
+        }
+
+        // Fully contained, perform subtraction
+        unionPolys = polygonClipping.difference(unionPolys, stairRing);
       } catch (err) {
-        console.warn('Failed to subtract stair hole footprint', err);
+        console.error('Failed to subtract stair hole footprint', err);
+        isValid = false;
       }
     });
+
+    if (!isValid) return [];
 
     // Convert back to Three.js Shapes
     return unionPolys.map((poly: any) => {

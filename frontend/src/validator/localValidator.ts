@@ -6,6 +6,18 @@ export interface ValidationReport {
   issues: string[];
 }
 
+/**
+ * Lightweight client-side preflight validation.
+ * 
+ * NOTE: This validator does NOT guarantee structural integrity. It only checks basic existence 
+ * of geometry arrays and minimal constraints. It DOES NOT validate:
+ * - Polygon self-intersection or room overlap
+ * - Furniture collisions or stair containment
+ * - Full graph connectivity and accessibility
+ * - Load-bearing support
+ * 
+ * For full validation, the building must be passed through the backend `/api/ai/validate` endpoint.
+ */
 export const validateBuildingLocal = (building: Building): ValidationReport => {
   const issues: string[] = [];
 

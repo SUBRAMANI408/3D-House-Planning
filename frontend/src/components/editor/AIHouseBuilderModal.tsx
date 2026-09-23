@@ -44,12 +44,15 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
       });
 
       if (res.data && res.data.building) {
-        const valStatus = res.data.validation?.status || 'passed';
-        setValidationReport(res.data.validation || { status: 'passed', totalIssues: 0 });
+        const valStatus = res.data.validation?.status;
+        setValidationReport(res.data.validation || { status: 'error', totalIssues: 1, issues: [{level: 'error', type: 'geometry', message: 'No validation object'}] });
 
-        if (valStatus === 'failed' || valStatus === 'error') {
+        if (valStatus !== 'passed') {
           setGenerating(false);
-          addToast({ type: 'error', message: 'Generated layout failed building validation. Please adjust input options.' });
+          addToast({
+            type: 'error',
+            message: 'Generated building has no successful validation result.',
+          });
           return;
         }
 

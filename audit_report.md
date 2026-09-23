@@ -37,7 +37,7 @@ All components now operate from **one unified, validated, canonical building mod
 - **Structural Floor Slab**: The floor slabs are now rendered using a true boolean polygon union via `polygon-clipping` instead of individual per-room extruded blocks. This ensures a monolithic seamless foundation and inter-floor structure. The union process correctly fails with an explicit error instead of silently falling back to overlapping geometry.
 - **Staircase Cutouts**: Staircase footprints are now accurately computed and subtracted from the monolithic structural slab using boolean geometry (`polygonClipping.difference`), scoped accurately to intersect without uncontrolled overcuts.
 - **Vite Dev Proxy Target**: The API proxy URL in `vite.config.ts` is now dynamically configurable using `VITE_API_URL`, supporting configurable backend routing.
-- **E2E Testing**: Basic Playwright E2E browser tests are added to verify the core workflow from Generation to 3D switching.
+- **E2E Testing**: Basic Playwright E2E browser tests are added to verify the core workflow from Generation to 3D switching. (Browser execution pending Chromium installation).
 - **Parametric AI Note**: The AI system behaves more like a parametric procedural generator. Advanced LLM spatial logic would require a separate spatial-reasoning service, but the current parametric fallback + geometric validation is robust and safe.
 
 The architecture is now structurally sound and safely validated against topological errors.
@@ -60,6 +60,8 @@ collected 21 items
 
 ======================== 21 passed in 3.12s ========================
 ```
+
+Note: Full Docker/PostgreSQL/Redis runtime verification via `docker compose` is pending Docker Engine installation in the execution environment.
 
 ### 2. Frontend Oxlint Check
 Executed via `npm run lint` in `frontend/`:
@@ -101,4 +103,4 @@ vite v8.3.0 building client environment for production...
 - [x] API client uses relative `/api` proxy paths for Vite dev server and production.
 - [x] True boolean polygon union for structural floor slabs via `polygon-clipping` with strict failure mode instead of silent fallback.
 - [x] Incomplete offline fallback generation prohibited to guarantee strict backend topology validation.
-- [x] Playwright E2E browser tests successfully execute the AI generation and View mode switching flow.
+- [ ] Playwright E2E browser tests added but browser execution pending Chromium installation in the specific test environment.
