@@ -86,10 +86,6 @@ def check_structural(building: Building) -> list[ValidationError]:
                         object_id=stair.id
                     ))
 
-        # Check slab geometries
-        if not floor.slab_geometry:
-            continue
-            
         # Re-compute union of all rooms
         room_polys = []
         for room in floor.rooms:
@@ -109,6 +105,7 @@ def check_structural(building: Building) -> list[ValidationError]:
         if not room_polys:
             continue
             
+        # If a floor has valid rooms, compute the expected canonical slab server-side.
         expected_slab = unary_union(room_polys)
         
         # Subtract penetrating staircases from lower floors (destination semantics)
@@ -148,34 +145,90 @@ def check_structural(building: Building) -> list[ValidationError]:
                     continue
                 expected_slab = expected_slab.difference(sp)
                 
+        if not floor.slab_geometry:
+            # Server-side canonical slab computation: Auto-populate if missing
+            from app.schema.building import SlabGeometry
+            if expected_slab.is_empty:
+                floor.slab_geometry = []
+            elif expected_slab.geom_type == 'Polygon':
+                floor.slab_geometry = [SlabGeometry(
+                    outer_ring=list(expected_slab.exterior.coords),
+                    inner_rings=[list(i.coords) for i in expected_slab.interiors]
+                )]
+            elif expected_slab.geom_type == 'MultiPolygon':
+                floor.slab_geometry = [
+                    SlabGeometry(
+                        outer_ring=list(poly.exterior.coords),
+                        inner_rings=[list(i.coords) for i in poly.interiors]
+                    ) for poly in expected_slab.geoms
+                ]
+            continue
+            
         # Now construct the submitted client slab geometry and compare topology
         submitted_outers = []
         submitted_inners = []
         for slab in floor.slab_geometry:
             if slab.outer_ring and len(slab.outer_ring) >= 3:
                 sg_poly = Polygon(slab.outer_ring)
-                if sg_poly.is_valid:
-                    submitted_outers.append(sg_poly)
+                if not sg_poly.is_valid:
+                    issues.append(ValidationError(
+                        code='INVALID_SLAB_RING',
+                        severity=Severity.error,
+                        message=f'Floor {floor.floor_index} submitted slab has an invalid outer ring.',
+                        floor_index=floor.floor_index
+                    ))
+                    continue
+                submitted_outers.append(sg_poly)
+                
                 for inner in (slab.inner_rings or []):
                     if len(inner) >= 3:
                         ir_poly = Polygon(inner)
-                        if ir_poly.is_valid:
-                            submitted_inners.append(ir_poly)
+                        if not ir_poly.is_valid:
+                            issues.append(ValidationError(
+                                code='INVALID_SLAB_RING',
+                                severity=Severity.error,
+                                message=f'Floor {floor.floor_index} submitted slab has an invalid inner ring (hole).',
+                                floor_index=floor.floor_index
+                            ))
+                            continue
+                        
+                        if not ir_poly.within(sg_poly):
+                            issues.append(ValidationError(
+                                code='INVALID_HOLE_CONTAINMENT',
+                                severity=Severity.error,
+                                message=f'Floor {floor.floor_index} submitted slab hole is not contained within the outer boundary.',
+                                floor_index=floor.floor_index
+                            ))
+                        submitted_inners.append(ir_poly)
         
         if submitted_outers:
             submitted_slab = unary_union(submitted_outers)
             if submitted_inners:
+                # Check if inner rings overlap each other
+                for i, ir1 in enumerate(submitted_inners):
+                    for j, ir2 in enumerate(submitted_inners):
+                        if i < j and ir1.intersects(ir2) and not ir1.touches(ir2):
+                            issues.append(ValidationError(
+                                code='HOLE_OVERLAP',
+                                severity=Severity.error,
+                                message=f'Floor {floor.floor_index} submitted slab contains overlapping holes.',
+                                floor_index=floor.floor_index
+                            ))
+                            break
+                            
                 submitted_slab = submitted_slab.difference(unary_union(submitted_inners))
                 
             # Full topological comparison via symmetric difference
             sym_diff = submitted_slab.symmetric_difference(expected_slab)
-            # Area of symmetric difference represents the magnitude of the topological mismatch
-            if sym_diff.area > 0.5:
+            # Use scale-aware tolerance: max(absolute_min, expected_area * relative_tolerance)
+            tolerance = max(0.2, expected_slab.area * 0.05)
+            
+            if sym_diff.area > tolerance:
                 issues.append(ValidationError(
                     code='INVALID_SLAB_GEOMETRY',
                     severity=Severity.error,
                     message=(f'Floor {floor.floor_index} submitted slab topology mismatch. '
-                             f'Symmetric difference area: {sym_diff.area:.2f} m².'),
+                             f'Symmetric difference area: {sym_diff.area:.2f} m² exceeds tolerance {tolerance:.2f} m².'),
                     floor_index=floor.floor_index
                 ))
         else:

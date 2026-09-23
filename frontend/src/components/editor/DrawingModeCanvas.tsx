@@ -330,9 +330,9 @@ export const DrawingModeCanvas: React.FC<{ onSwitchTo3D: () => void }> = ({ onSw
 
     const assocWalls = currentFloor.walls.filter(w => r.wallIds.includes(w.id));
     setInitialRoomState({
-      room: JSON.parse(JSON.stringify(r)),
-      walls: JSON.parse(JSON.stringify(assocWalls)),
-      furniture: JSON.parse(JSON.stringify(r.furniture))
+      room: structuredClone(r),
+      walls: structuredClone(assocWalls),
+      furniture: structuredClone(r.furniture)
     });
 
     setDraggingRoomId(r.id);
