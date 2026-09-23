@@ -25,6 +25,6 @@ def test_template_roundtrip_and_validation(template_path: Path):
     assert len(reparsed_building.floors) == len(building.floors)
 
     # 4. Run validators
-    result = validate_building(building)
+    result = validate_building(building, normalize=True)
     # Ensure no severe structural/connectivity errors
     assert len(result.errors) == 0, f"Template {template_path.name} failed validation errors: {result.errors}"

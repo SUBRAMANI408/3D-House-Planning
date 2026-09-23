@@ -15,7 +15,7 @@ export class GeometryValidationError extends Error {
 /**
  * Computes the canonical structural slab geometry for all floors in a building.
  * @param building The building model to compute slabs for.
- * @returns The same building object, mutated with `slabGeometry` on each floor.
+ * @returns A new building object, deeply cloned using structuredClone, without mutating the input.
  * @throws GeometryValidationError if a footprint violates structural constraints (e.g. stair outside slab).
  */
 export function computeSlabGeometries(building: Building): Building {

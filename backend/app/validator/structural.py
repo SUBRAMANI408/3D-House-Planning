@@ -59,6 +59,68 @@ def _segment_overlap_fraction(ax1: float, ay1: float, ax2: float, ay2: float,
     return hits / samples
 
 
+def normalize_slab_geometry(building: Building):
+    """
+    Computes and populates canonical slab_geometry on floors missing it,
+    so AI generations or templates can be structurally verified.
+    Does NOT mutate if slab_geometry is already provided.
+    """
+    from app.schema.building import SlabGeometry
+    
+    for floor in building.floors:
+        if floor.slab_geometry:
+            continue
+            
+        room_polys = []
+        for room in floor.rooms:
+            if room.polygon and len(room.polygon) >= 3:
+                rp = Polygon(room.polygon)
+                if rp.is_valid:
+                    room_polys.append(rp)
+                    
+        if not room_polys:
+            continue
+            
+        expected_slab = unary_union(room_polys)
+        
+        all_stairs = [s for f in building.floors for s in f.staircases]
+        for s in all_stairs:
+            start_idx = s.start_floor_index if s.start_floor_index is not None else 0
+            if start_idx < floor.floor_index and (s.end_floor_index is None or s.end_floor_index >= floor.floor_index):
+                # Generate canonical footprint from dimensions
+                sw = s.width or 1.2
+                sl = s.length or 2.6
+                rot = s.rotation or 0.0
+                sx, sy = s.position if s.position else (0.0, 0.0)
+                cos_r = math.cos(rot)
+                sin_r = math.sin(rot)
+                corners = [(-sw/2, -sl/2), (sw/2, -sl/2), (sw/2, sl/2), (-sw/2, sl/2)]
+                sp_pts = [(sx + c[0]*cos_r - c[1]*sin_r, sy + c[0]*sin_r + c[1]*cos_r) for c in corners]
+                canonical_sp = Polygon(sp_pts)
+                
+                if s.footprint and len(s.footprint) >= 3:
+                    sp = Polygon(s.footprint)
+                else:
+                    sp = canonical_sp
+                
+                if sp.is_valid:
+                    expected_slab = expected_slab.difference(sp)
+                    
+        if expected_slab.is_empty:
+            floor.slab_geometry = []
+        elif expected_slab.geom_type == 'Polygon':
+            floor.slab_geometry = [SlabGeometry(
+                outer_ring=list(expected_slab.exterior.coords),
+                inner_rings=[list(i.coords) for i in expected_slab.interiors]
+            )]
+        elif expected_slab.geom_type == 'MultiPolygon':
+            floor.slab_geometry = [
+                SlabGeometry(
+                    outer_ring=list(poly.exterior.coords),
+                    inner_rings=[list(i.coords) for i in poly.interiors]
+                ) for poly in expected_slab.geoms
+            ]
+
 def check_structural(building: Building) -> list[ValidationError]:
     issues: list[ValidationError] = []
 
@@ -72,18 +134,18 @@ def check_structural(building: Building) -> list[ValidationError]:
                     issues.append(ValidationError(
                         code='INVALID_STAIR_FOOTPRINT',
                         severity=Severity.error,
-                        message=f'Staircase {stair.id} footprint is topologically invalid (e.g. self-intersecting).',
+                        message=f'Staircase {stair.staircase_id} footprint is topologically invalid (e.g. self-intersecting).',
                         floor_index=floor.floor_index,
-                        object_id=stair.id
+                        object_id=stair.staircase_id
                     ))
                     continue
                 if poly.area < 0.1:
                     issues.append(ValidationError(
                         code='INVALID_STAIR_FOOTPRINT',
                         severity=Severity.error,
-                        message=f'Staircase {stair.id} footprint area is near zero.',
+                        message=f'Staircase {stair.staircase_id} footprint area is near zero.',
                         floor_index=floor.floor_index,
-                        object_id=stair.id
+                        object_id=stair.staircase_id
                     ))
 
         # Re-compute union of all rooms
@@ -95,9 +157,9 @@ def check_structural(building: Building) -> list[ValidationError]:
                     issues.append(ValidationError(
                         code='INVALID_ROOM_POLYGON',
                         severity=Severity.error,
-                        message=f'Room {room.id} has an invalid polygon.',
+                        message=f'Room {room.room_id} has an invalid polygon.',
                         floor_index=floor.floor_index,
-                        object_id=room.id
+                        object_id=room.room_id
                     ))
                     continue
                 room_polys.append(rp)
@@ -121,7 +183,7 @@ def check_structural(building: Building) -> list[ValidationError]:
                     sw = s.width or 1.2
                     sl = s.length or 2.6
                     rot = s.rotation or 0.0
-                    sx, sy = s.position
+                    sx, sy = s.position if s.position else (0.0, 0.0)
                     cos_r = math.cos(rot)
                     sin_r = math.sin(rot)
                     corners = [
@@ -138,33 +200,44 @@ def check_structural(building: Building) -> list[ValidationError]:
                     issues.append(ValidationError(
                         code='INVALID_STAIR_GEOMETRY',
                         severity=Severity.error,
-                        message=f'Staircase {s.id} generates invalid geometry.',
+                        message=f'Staircase {s.staircase_id} generates invalid geometry.',
                         floor_index=floor.floor_index,
-                        object_id=s.id
+                        object_id=s.staircase_id
                     ))
                     continue
-                expected_slab = expected_slab.difference(sp)
                 
+                # Verify that the staircase footprint is entirely within the expected slab.
+                if not sp.within(expected_slab):
+                    if sp.intersects(expected_slab):
+                        issues.append(ValidationError(
+                            code='PARTIALLY_OUTSIDE_STAIR_FOOTPRINT',
+                            severity=Severity.error,
+                            message=f'Staircase {s.staircase_id} partially extends outside the floor {floor.floor_index} slab.',
+                            floor_index=floor.floor_index,
+                            object_id=s.staircase_id
+                        ))
+                    else:
+                        issues.append(ValidationError(
+                            code='COMPLETELY_OUTSIDE_STAIR_FOOTPRINT',
+                            severity=Severity.error,
+                            message=f'Staircase {s.staircase_id} is completely outside the floor {floor.floor_index} slab.',
+                            floor_index=floor.floor_index,
+                            object_id=s.staircase_id
+                        ))
+                    continue
+                
+                expected_slab = expected_slab.difference(sp)
+        
+        # Now construct the submitted client slab geometry and compare topology
         if not floor.slab_geometry:
-            # Server-side canonical slab computation: Auto-populate if missing
-            from app.schema.building import SlabGeometry
-            if expected_slab.is_empty:
-                floor.slab_geometry = []
-            elif expected_slab.geom_type == 'Polygon':
-                floor.slab_geometry = [SlabGeometry(
-                    outer_ring=list(expected_slab.exterior.coords),
-                    inner_rings=[list(i.coords) for i in expected_slab.interiors]
-                )]
-            elif expected_slab.geom_type == 'MultiPolygon':
-                floor.slab_geometry = [
-                    SlabGeometry(
-                        outer_ring=list(poly.exterior.coords),
-                        inner_rings=[list(i.coords) for i in poly.interiors]
-                    ) for poly in expected_slab.geoms
-                ]
+            issues.append(ValidationError(
+                code='MISSING_SLAB_GEOMETRY',
+                severity=Severity.error,
+                message=f'Floor {floor.floor_index} contains rooms but is missing canonical slab geometry.',
+                floor_index=floor.floor_index
+            ))
             continue
             
-        # Now construct the submitted client slab geometry and compare topology
         submitted_outers = []
         submitted_inners = []
         for slab in floor.slab_geometry:
@@ -177,7 +250,7 @@ def check_structural(building: Building) -> list[ValidationError]:
                         message=f'Floor {floor.floor_index} submitted slab has an invalid outer ring.',
                         floor_index=floor.floor_index
                     ))
-                    continue
+                    return issues  # Fail definitively immediately
                 submitted_outers.append(sg_poly)
                 
                 for inner in (slab.inner_rings or []):
@@ -190,7 +263,7 @@ def check_structural(building: Building) -> list[ValidationError]:
                                 message=f'Floor {floor.floor_index} submitted slab has an invalid inner ring (hole).',
                                 floor_index=floor.floor_index
                             ))
-                            continue
+                            return issues  # Fail definitively immediately
                         
                         if not ir_poly.within(sg_poly):
                             issues.append(ValidationError(

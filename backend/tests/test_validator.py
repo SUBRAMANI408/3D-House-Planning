@@ -152,7 +152,7 @@ def test_room_sizing_too_small():
     assert any("minimum" in w.message.lower() for w in warnings)
     
     # Full validate_building call should be valid (warnings only, no hard errors)
-    res = validate_building(house)
+    res = validate_building(house, normalize=True)
     assert res.is_valid is True
 
 def test_staircase_hole_semantics():
@@ -184,6 +184,8 @@ def test_staircase_hole_semantics():
     house.floors[0].staircases = [stair]
     
     # Check structural rules
+    from app.validator.structural import normalize_slab_geometry
+    normalize_slab_geometry(house)
     issues = check_structural(house)
     errors = [i for i in issues if i.severity == "error"]
     assert len(errors) == 0

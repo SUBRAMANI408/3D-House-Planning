@@ -409,7 +409,7 @@ async def generate_ai_building(req: AIGenerateRequest) -> AIGenerateResponse:
         ]
 
         floor1_stairs = [
-            {"id": f"stair1-{ts}", "startFloorIndex": 0, "endFloorIndex": 1, "connectsFloors": [0, 1], "position": [2.8, 5.3], "width": 1.2, "length": 2.8, "type": "straight"}
+            {"id": f"stair1-{ts}", "startFloorIndex": 0, "endFloorIndex": 1, "connectsFloors": [0, 1], "position": [2.5, 2.0], "width": 1.2, "length": 2.8, "type": "straight"}
         ]
 
         floors_list.append({
@@ -464,7 +464,7 @@ async def generate_ai_building(req: AIGenerateRequest) -> AIGenerateResponse:
     # Validate generated model
     try:
         b_obj = Building.model_validate(raw_building)
-        val_res = validate_building(b_obj)
+        val_res = validate_building(b_obj, normalize=True)
         issues = val_res.errors + val_res.warnings
         issues_dict = [iss.model_dump(by_alias=True) for iss in issues]
         has_errors = len(val_res.errors) > 0
@@ -479,7 +479,8 @@ async def generate_ai_building(req: AIGenerateRequest) -> AIGenerateResponse:
         "totalIssues": len(issues_dict),
     }
 
-    return AIGenerateResponse(building=raw_building, validation=validation_result)
+    normalized_building = b_obj.model_dump(by_alias=True, exclude_none=True) if val_status != "error" else raw_building
+    return AIGenerateResponse(building=normalized_building, validation=validation_result)
 
 
 @router.post("/validate")
@@ -487,7 +488,7 @@ async def validate_ai_building(building_data: dict[str, Any]) -> dict[str, Any]:
     """Validate any client building json before loading into canvas."""
     try:
         b_obj = Building.model_validate(building_data)
-        val_res = validate_building(b_obj)
+        val_res = validate_building(b_obj, normalize=False)
         issues = val_res.errors + val_res.warnings
         issues_dict = [iss.model_dump(by_alias=True) for iss in issues]
         has_errors = len(val_res.errors) > 0

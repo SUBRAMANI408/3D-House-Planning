@@ -86,7 +86,7 @@ async def create_project(
     if building_json:
         try:
             building_obj = BuildingSchema.model_validate(building_json)
-            val_res = validate_building(building_obj)
+            val_res = validate_building(building_obj, normalize=False)
             if val_res.errors:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -162,7 +162,7 @@ async def update_project(
     if request.building_json is not None:
         try:
             building_obj = BuildingSchema.model_validate(request.building_json)
-            val_res = validate_building(building_obj)
+            val_res = validate_building(building_obj, normalize=False)
             if val_res.errors:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -224,7 +224,7 @@ async def validate_project(
         
     try:
         building_obj = BuildingSchema.model_validate(project.building_json or {})
-        return validate_building(building_obj)
+        return validate_building(building_obj, normalize=False)
     except Exception as e:
         return {"is_valid": False, "errors": [f"Invalid building schema: {str(e)}"], "warnings": []}
 

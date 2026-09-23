@@ -144,7 +144,7 @@ async def create_template(
         
     try:
         building_obj = BuildingSchema.model_validate(building_json)
-        val_res = validate_building(building_obj)
+        val_res = validate_building(building_obj, normalize=True)
         if val_res.errors:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -206,7 +206,7 @@ async def update_template(
     if request.building_json is not None:
         try:
             building_obj = BuildingSchema.model_validate(request.building_json)
-            val_res = validate_building(building_obj)
+            val_res = validate_building(building_obj, normalize=True)
             if val_res.errors:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

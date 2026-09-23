@@ -28,7 +28,7 @@ def test_ai_generate_endpoint_valid_house():
     b = data["building"]
     assert b["buildingType"] == "house"
     assert len(b["floors"]) == 2
-    assert data["validation"]["status"] == "passed"
+    assert data["validation"]["status"] == "passed", f"Validation issues: {data['validation']['issues']}"
 
     # Verify reciprocal room connections exist
     gf_rooms = b["floors"][0]["rooms"]
