@@ -1,9 +1,9 @@
-import React, { useMemo, useState, useRef, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import polygonClipping from 'polygon-clipping';
 import { useBuildingStore } from '../../store/buildingStore';
 import { useUIStore } from '../../store/uiStore';
-import type { Wall, Room, FurnitureItem, Door, Window, Staircase, Roof, Vector2 } from '../../schema/building.types';
+import type { Wall, Room, FurnitureItem, Door, Window, Staircase, Roof } from '../../schema/building.types';
 import { ROOM_COLORS, FURNITURE_DIMENSIONS } from '../../schema/building.types';
 
 
@@ -381,19 +381,6 @@ export const BuildingRenderer: React.FC = () => {
 
 // ── FloorSlabMesh ─────────────────────────────────────────────────────────────
 
-const isStairInRoom = (stair: Staircase, polygon: Vector2[]): boolean => {
-  if (!stair.position || !polygon || polygon.length < 3) return false;
-  const [sx, sz] = stair.position;
-  let inside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i][0], yi = polygon[i][1];
-    const xj = polygon[j][0], yj = polygon[j][1];
-    const intersect = ((yi > sz) !== (yj > sz)) && (sx < (xj - xi) * (sz - yi) / (yj - yi + 0.000001) + xi);
-    if (intersect) inside = !inside;
-  }
-  return inside;
-};
-
 const FloorSlabMesh: React.FC<{ rooms: Room[]; staircases?: Staircase[] }> = ({ rooms, staircases = [] }) => {
   const geometries = useMemo(() => {
     const validRooms = rooms.filter(r => r.polygon && r.polygon.length >= 3);
@@ -403,7 +390,7 @@ const FloorSlabMesh: React.FC<{ rooms: Room[]; staircases?: Staircase[] }> = ({ 
     // We negate Y here to match Three.js Z-axis convention used in the visualizer
     const polys = validRooms.map(r => [r.polygon.map(p => [p[0], -p[1]] as [number, number])]);
 
-    let unionPolys;
+    let unionPolys: any;
     try {
       if (polys.length > 1) {
         unionPolys = polygonClipping.union(polys[0], ...polys.slice(1));
@@ -411,12 +398,40 @@ const FloorSlabMesh: React.FC<{ rooms: Room[]; staircases?: Staircase[] }> = ({ 
         unionPolys = [polys[0]];
       }
     } catch (e) {
-      console.warn('Polygon union failed, falling back to separate rooms', e);
-      unionPolys = polys;
+      console.error('Polygon union failed. Structural slab could not be generated cleanly.', e);
+      return []; // Do not silently fall back to separate room extrusions
     }
 
+    // Process staircases via robust boolean difference
+    staircases.forEach(stair => {
+      const sx = stair.position[0];
+      const sz = stair.position[1];
+      const sw = stair.width ?? 1.2;
+      const sl = stair.length ?? 2.6;
+
+      const stairPoly: [number, number][] = [
+        [sx - sw / 2, -(sz - sl / 2)],
+        [sx + sw / 2, -(sz - sl / 2)],
+        [sx + sw / 2, -(sz + sl / 2)],
+        [sx - sw / 2, -(sz + sl / 2)],
+        [sx - sw / 2, -(sz - sl / 2)]
+      ];
+      
+      const stairRing: any = [stairPoly];
+      
+      try {
+        const intersection = polygonClipping.intersection(unionPolys, stairRing);
+        // Only subtract if it's actually contained/intersecting
+        if (intersection.length > 0) {
+          unionPolys = polygonClipping.difference(unionPolys, stairRing);
+        }
+      } catch (err) {
+        console.warn('Failed to subtract stair hole footprint', err);
+      }
+    });
+
     // Convert back to Three.js Shapes
-    return unionPolys.map(poly => {
+    return unionPolys.map((poly: any) => {
       const outerRing = poly[0];
       const shape = new THREE.Shape();
       shape.moveTo(outerRing[0][0], outerRing[0][1]);
@@ -425,7 +440,7 @@ const FloorSlabMesh: React.FC<{ rooms: Room[]; staircases?: Staircase[] }> = ({ 
       }
       shape.closePath();
 
-      // Add inner holes from the union (if any were created by courtyard etc)
+      // Add inner holes from the union (courtyards, shafts, stair voids)
       for (let i = 1; i < poly.length; i++) {
         const holeRing = poly[i];
         const hole = new THREE.Path();
@@ -437,33 +452,14 @@ const FloorSlabMesh: React.FC<{ rooms: Room[]; staircases?: Staircase[] }> = ({ 
         shape.holes.push(hole);
       }
 
-      // Cut out staircase openings from the unified slab
-      staircases.forEach((stair) => {
-        // Simple bounding check or use the old logic. 
-        // We'll just cut out the stair hole blindly if it's within bounds, 
-        // but it's safer to ensure it falls within the floor bounds.
-        const sx = stair.position[0];
-        const sz = stair.position[1];
-        const sw = stair.width ?? 1.2;
-        const sl = stair.length ?? 2.6;
-
-        const hole = new THREE.Path();
-        hole.moveTo(sx - sw / 2, -(sz - sl / 2));
-        hole.lineTo(sx + sw / 2, -(sz - sl / 2));
-        hole.lineTo(sx + sw / 2, -(sz + sl / 2));
-        hole.lineTo(sx - sw / 2, -(sz + sl / 2));
-        hole.closePath();
-        shape.holes.push(hole);
-      });
-
       return new THREE.ExtrudeGeometry(shape, { depth: 0.2, bevelEnabled: false });
     });
   }, [rooms, staircases]);
 
   return (
     <group position={[0, -0.2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-      {geometries.map((geo, idx) => geo && (
-        <mesh key={idx} geometry={geo} receiveShadow castShadow>
+      {geometries.map((geo: any, idx: number) => (
+        <mesh key={`slab-geom-${idx}`} receiveShadow castShadow geometry={geo}>
           <meshStandardMaterial color="#1e293b" roughness={0.8} transparent={false} side={THREE.DoubleSide} />
         </mesh>
       ))}

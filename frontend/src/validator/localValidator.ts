@@ -1,4 +1,4 @@
-import { Building } from '../schema/building.types';
+import type { Building } from '../schema/building.types';
 
 export interface ValidationReport {
   status: 'passed' | 'failed' | 'error';
@@ -24,7 +24,7 @@ export const validateBuildingLocal = (building: Building): ValidationReport => {
       if (!room.polygon || room.polygon.length < 3) {
         issues.push(`Room ${room.id} has invalid polygon geometry.`);
       }
-      if (room.area < 1) {
+      if ((room.area ?? 0) < 1) {
         issues.push(`Room ${room.id} has unusually small area (${room.area}).`);
       }
     });

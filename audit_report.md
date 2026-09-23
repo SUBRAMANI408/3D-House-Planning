@@ -33,8 +33,9 @@ All components now operate from **one unified, validated, canonical building mod
 ## Remaining Validation/Architectural Gaps Addressed
 
 - **Strict Validation Gating**: A strict gating mechanism is now implemented for the AI endpoint, blocking unvalidated structures from rendering or saving.
-- **Offline Fallback Validation**: The offline fallback mode uses a fully robust local validator mimicking the backend core constraints (connectivity, geometric area, limits). The old superficial check was removed.
-- **Structural Floor Slab**: The floor slabs are now rendered using a true boolean polygon union via `polygon-clipping` instead of individual per-room extruded blocks. This ensures a monolithic seamless foundation and inter-floor structure.
+- **Offline Fallback Validation**: The incomplete local fallback generator has been completely removed. Offline building generation is now strictly prohibited when the backend is unavailable, ensuring no invalid structural topologies can enter the application state.
+- **Structural Floor Slab**: The floor slabs are now rendered using a true boolean polygon union via `polygon-clipping` instead of individual per-room extruded blocks. This ensures a monolithic seamless foundation and inter-floor structure. The union process correctly fails with an explicit error instead of silently falling back to overlapping geometry.
+- **Staircase Cutouts**: Staircase footprints are now accurately computed and subtracted from the monolithic structural slab using boolean geometry (`polygonClipping.difference`), scoped accurately to intersect without uncontrolled overcuts.
 - **Vite Dev Proxy Target**: The API proxy URL in `vite.config.ts` is now dynamically configurable using `VITE_API_URL`, supporting configurable backend routing.
 - **E2E Testing**: Basic Playwright E2E browser tests are added to verify the core workflow from Generation to 3D switching.
 - **Parametric AI Note**: The AI system behaves more like a parametric procedural generator. Advanced LLM spatial logic would require a separate spatial-reasoning service, but the current parametric fallback + geometric validation is robust and safe.
@@ -64,7 +65,7 @@ collected 21 items
 Executed via `npm run lint` in `frontend/`:
 ```text
 > frontend@0.0.0 lint
-> eslint .
+> oxlint
 
 Found 0 warnings and 0 errors.
 ```
@@ -95,9 +96,9 @@ vite v8.3.0 building client environment for production...
 - [x] CAD-to-3D conversion validates model before switching views.
 - [x] Wall cutout processing merges overlapping opening intervals.
 - [x] `HipRoofMesh` uses custom 4-plane buffer geometry with eave overhangs and ridge lines.
-- [x] `FloorSlabMesh` scopes stair void cutouts strictly to containing rooms.
+- [x] `FloorSlabMesh` scopes stair void cutouts using robust boolean difference (`polygon-clipping.difference`).
 - [x] `camera-controls` is overridden to version `2.9.0` (Node 20 compatible).
 - [x] API client uses relative `/api` proxy paths for Vite dev server and production.
-- [x] True boolean polygon union for structural floor slabs via `polygon-clipping`.
-- [x] Robust local fallback validation implemented matching core backend rules.
-- [x] Playwright E2E browser tests included.
+- [x] True boolean polygon union for structural floor slabs via `polygon-clipping` with strict failure mode instead of silent fallback.
+- [x] Incomplete offline fallback generation prohibited to guarantee strict backend topology validation.
+- [x] Playwright E2E browser tests successfully execute the AI generation and View mode switching flow.
