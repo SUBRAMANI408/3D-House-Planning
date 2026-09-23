@@ -103,3 +103,7 @@ vite v8.3.0 building client environment for production...
 - [x] True boolean polygon union for structural floor slabs via `polygon-clipping` with strict failure mode instead of silent fallback.
 - [x] Incomplete offline fallback generation prohibited to guarantee strict backend topology validation.
 - [x] Playwright E2E browser tests fully executed and passed after Chromium installation.
+
+## Environment & Dependency Limitations
+1. **Docker Runtime**: Full backend runtime (PostgreSQL/Redis via compose) is validated theoretically but could not be spun up in this specific auditing environment due to the absence of the Docker engine on the host. 
+2. **NPM Audit**: The frontend toolchain reports 5 vulnerabilities in `vite` and `esbuild` development packages. We explicitly pin `vitest@2.1.1` to maintain project compilation support for the Node 20 runtime. Upgrading to clear these development advisories forces `vitest@5.0+`, breaking Node 20. Since `npm audit --omit=dev` reports 0 vulnerabilities, these build-time advisories are deliberately accepted.

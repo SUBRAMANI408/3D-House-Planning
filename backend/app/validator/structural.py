@@ -1,6 +1,8 @@
 import math
 from app.schema.building import Building
 from app.validator.models import ValidationError, Severity
+from shapely.geometry import Polygon
+from shapely.ops import unary_union
 
 
 def calculate_polygon_area(polygon: list[list[float]]) -> float:
@@ -59,6 +61,95 @@ def _segment_overlap_fraction(ax1: float, ay1: float, ax2: float, ay2: float,
 
 def check_structural(building: Building) -> list[ValidationError]:
     issues: list[ValidationError] = []
+
+    # 0. Check canonical slab geometries and custom footprints via Shapely
+    for floor in building.floors:
+        # First, validate any custom stair footprints on this floor
+        for stair in floor.staircases:
+            if stair.footprint and len(stair.footprint) >= 3:
+                poly = Polygon(stair.footprint)
+                if not poly.is_valid:
+                    poly = poly.buffer(0)
+                if poly.area < 0.1:
+                    issues.append(ValidationError(
+                        code='INVALID_STAIR_FOOTPRINT',
+                        severity=Severity.error,
+                        message=f'Staircase {stair.id} footprint area is near zero.',
+                        floor_index=floor.floor_index,
+                        object_id=stair.id
+                    ))
+
+        # Check slab geometries
+        if not floor.slab_geometry:
+            continue
+            
+        # Re-compute union of all rooms
+        room_polys = []
+        for room in floor.rooms:
+            if room.polygon and len(room.polygon) >= 3:
+                rp = Polygon(room.polygon)
+                if not rp.is_valid:
+                    rp = rp.buffer(0)
+                room_polys.append(rp)
+                
+        if not room_polys:
+            continue
+            
+        expected_slab = unary_union(room_polys)
+        
+        # Subtract penetrating staircases from lower floors (destination semantics)
+        # Stair originating here doesn't cut a hole in this floor.
+        all_stairs = [s for f in building.floors for s in f.staircases]
+        for s in all_stairs:
+            # Rule: Stair cuts hole in upper floors, not the start floor
+            start_idx = s.start_floor_index if s.start_floor_index is not None else 0
+            if start_idx < floor.floor_index and (s.end_floor_index is None or s.end_floor_index >= floor.floor_index):
+                if s.footprint and len(s.footprint) >= 3:
+                    sp = Polygon(s.footprint)
+                else:
+                    sw = s.width or 1.2
+                    sl = s.length or 2.6
+                    rot = s.rotation or 0.0
+                    sx, sy = s.position
+                    cos_r = math.cos(rot)
+                    sin_r = math.sin(rot)
+                    corners = [
+                        (-sw/2, -sl/2), (sw/2, -sl/2),
+                        (sw/2, sl/2), (-sw/2, sl/2)
+                    ]
+                    sp_pts = [
+                        (sx + c[0]*cos_r - c[1]*sin_r, sy + c[0]*sin_r + c[1]*cos_r)
+                        for c in corners
+                    ]
+                    sp = Polygon(sp_pts)
+                
+                if not sp.is_valid:
+                    sp = sp.buffer(0)
+                expected_slab = expected_slab.difference(sp)
+                
+        # Now compare submitted client slab geometry area with expected
+        submitted_area = 0.0
+        for slab in floor.slab_geometry:
+            if slab.outer_ring and len(slab.outer_ring) >= 3:
+                sg_poly = Polygon(slab.outer_ring)
+                if not sg_poly.is_valid:
+                    sg_poly = sg_poly.buffer(0)
+                submitted_area += sg_poly.area
+                for inner in (slab.inner_rings or []):
+                    if len(inner) >= 3:
+                        ir_poly = Polygon(inner)
+                        if not ir_poly.is_valid:
+                            ir_poly = ir_poly.buffer(0)
+                        submitted_area -= ir_poly.area
+                        
+        if abs(submitted_area - expected_slab.area) > 0.5:
+            issues.append(ValidationError(
+                code='INVALID_SLAB_GEOMETRY',
+                severity=Severity.error,
+                message=(f'Floor {floor.floor_index} slab geometry area mismatch. '
+                         f'Expected {expected_slab.area:.2f}, got {submitted_area:.2f}.'),
+                floor_index=floor.floor_index
+            ))
 
     if len(building.floors) <= 1:
         return issues

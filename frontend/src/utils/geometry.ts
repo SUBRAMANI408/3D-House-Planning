@@ -21,12 +21,15 @@ export class GeometryValidationError extends Error {
 export function computeSlabGeometries(building: Building): Building {
   // Deep clone to ensure transactional updates
   const newBuilding: Building = JSON.parse(JSON.stringify(building));
+  
+  // Staging map to hold computed geometries before applying
+  const stagingMap = new Map<number, any[]>();
 
   newBuilding.floors.forEach((floor, idx) => {
     // 1. Union all room polygons
     const validRooms = floor.rooms.filter(r => r.polygon && r.polygon.length >= 3);
     if (validRooms.length === 0) {
-      floor.slabGeometry = [];
+      stagingMap.set(idx, []);
       return;
     }
 
@@ -69,11 +72,14 @@ export function computeSlabGeometries(building: Building): Building {
            fp = [...fp, first]; // close the polygon
         }
         
-        // Calculate area
+        // Calculate area and check self-intersection / closure
         let area = 0;
         for (let i = 0; i < fp.length - 1; i++) {
           area += fp[i][0] * fp[i + 1][1] - fp[i + 1][0] * fp[i][1];
         }
+        
+        // Ensure orientation is consistent (polygon-clipping prefers counter-clockwise outer rings)
+        // A positive area calculation normally indicates CCW if Y is up.
         if (Math.abs(area / 2) < 0.1) {
           throw new GeometryValidationError(
             `Staircase ${stair.id || 'unknown'} has invalid footprint area on floor ${floor.index}.`,
@@ -134,12 +140,17 @@ export function computeSlabGeometries(building: Building): Building {
       }
     }
 
-    // 4. Map back to SlabGeometry schema
-    floor.slabGeometry = unionPolys.map((poly: any) => {
+    // 4. Map back to SlabGeometry schema into staging
+    stagingMap.set(idx, unionPolys.map((poly: any) => {
       const outerRing = poly[0].map((p: any) => [p[0], p[1]] as [number, number]);
       const innerRings = poly.slice(1).map((ring: any) => ring.map((p: any) => [p[0], p[1]] as [number, number]));
       return { outerRing, innerRings };
-    });
+    }));
+  });
+
+  // 5. Apply staging map to clone since all floors succeeded
+  newBuilding.floors.forEach((floor, idx) => {
+    floor.slabGeometry = stagingMap.get(idx) || [];
   });
 
   return newBuilding;
