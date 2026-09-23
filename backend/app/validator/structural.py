@@ -69,7 +69,14 @@ def check_structural(building: Building) -> list[ValidationError]:
             if stair.footprint and len(stair.footprint) >= 3:
                 poly = Polygon(stair.footprint)
                 if not poly.is_valid:
-                    poly = poly.buffer(0)
+                    issues.append(ValidationError(
+                        code='INVALID_STAIR_FOOTPRINT',
+                        severity=Severity.error,
+                        message=f'Staircase {stair.id} footprint is topologically invalid (e.g. self-intersecting).',
+                        floor_index=floor.floor_index,
+                        object_id=stair.id
+                    ))
+                    continue
                 if poly.area < 0.1:
                     issues.append(ValidationError(
                         code='INVALID_STAIR_FOOTPRINT',
@@ -89,7 +96,14 @@ def check_structural(building: Building) -> list[ValidationError]:
             if room.polygon and len(room.polygon) >= 3:
                 rp = Polygon(room.polygon)
                 if not rp.is_valid:
-                    rp = rp.buffer(0)
+                    issues.append(ValidationError(
+                        code='INVALID_ROOM_POLYGON',
+                        severity=Severity.error,
+                        message=f'Room {room.id} has an invalid polygon.',
+                        floor_index=floor.floor_index,
+                        object_id=room.id
+                    ))
+                    continue
                 room_polys.append(rp)
                 
         if not room_polys:
@@ -124,32 +138,53 @@ def check_structural(building: Building) -> list[ValidationError]:
                     sp = Polygon(sp_pts)
                 
                 if not sp.is_valid:
-                    sp = sp.buffer(0)
+                    issues.append(ValidationError(
+                        code='INVALID_STAIR_GEOMETRY',
+                        severity=Severity.error,
+                        message=f'Staircase {s.id} generates invalid geometry.',
+                        floor_index=floor.floor_index,
+                        object_id=s.id
+                    ))
+                    continue
                 expected_slab = expected_slab.difference(sp)
                 
-        # Now compare submitted client slab geometry area with expected
-        submitted_area = 0.0
+        # Now construct the submitted client slab geometry and compare topology
+        submitted_outers = []
+        submitted_inners = []
         for slab in floor.slab_geometry:
             if slab.outer_ring and len(slab.outer_ring) >= 3:
                 sg_poly = Polygon(slab.outer_ring)
-                if not sg_poly.is_valid:
-                    sg_poly = sg_poly.buffer(0)
-                submitted_area += sg_poly.area
+                if sg_poly.is_valid:
+                    submitted_outers.append(sg_poly)
                 for inner in (slab.inner_rings or []):
                     if len(inner) >= 3:
                         ir_poly = Polygon(inner)
-                        if not ir_poly.is_valid:
-                            ir_poly = ir_poly.buffer(0)
-                        submitted_area -= ir_poly.area
-                        
-        if abs(submitted_area - expected_slab.area) > 0.5:
-            issues.append(ValidationError(
-                code='INVALID_SLAB_GEOMETRY',
-                severity=Severity.error,
-                message=(f'Floor {floor.floor_index} slab geometry area mismatch. '
-                         f'Expected {expected_slab.area:.2f}, got {submitted_area:.2f}.'),
-                floor_index=floor.floor_index
-            ))
+                        if ir_poly.is_valid:
+                            submitted_inners.append(ir_poly)
+        
+        if submitted_outers:
+            submitted_slab = unary_union(submitted_outers)
+            if submitted_inners:
+                submitted_slab = submitted_slab.difference(unary_union(submitted_inners))
+                
+            # Full topological comparison via symmetric difference
+            sym_diff = submitted_slab.symmetric_difference(expected_slab)
+            # Area of symmetric difference represents the magnitude of the topological mismatch
+            if sym_diff.area > 0.5:
+                issues.append(ValidationError(
+                    code='INVALID_SLAB_GEOMETRY',
+                    severity=Severity.error,
+                    message=(f'Floor {floor.floor_index} submitted slab topology mismatch. '
+                             f'Symmetric difference area: {sym_diff.area:.2f} m².'),
+                    floor_index=floor.floor_index
+                ))
+        else:
+             issues.append(ValidationError(
+                    code='INVALID_SLAB_GEOMETRY',
+                    severity=Severity.error,
+                    message=f'Floor {floor.floor_index} is missing valid outer rings in submitted slab.',
+                    floor_index=floor.floor_index
+             ))
 
     if len(building.floors) <= 1:
         return issues

@@ -19,8 +19,8 @@ export class GeometryValidationError extends Error {
  * @throws GeometryValidationError if a footprint violates structural constraints (e.g. stair outside slab).
  */
 export function computeSlabGeometries(building: Building): Building {
-  // Deep clone to ensure transactional updates
-  const newBuilding: Building = JSON.parse(JSON.stringify(building));
+  // Deep clone to ensure transactional updates using structuredClone
+  const newBuilding: Building = structuredClone(building);
   
   // Staging map to hold computed geometries before applying
   const stagingMap = new Map<number, any[]>();
