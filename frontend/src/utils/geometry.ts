@@ -19,7 +19,10 @@ export class GeometryValidationError extends Error {
  * @throws GeometryValidationError if a footprint violates structural constraints (e.g. stair outside slab).
  */
 export function computeSlabGeometries(building: Building): Building {
-  building.floors.forEach((floor, idx) => {
+  // Deep clone to ensure transactional updates
+  const newBuilding: Building = JSON.parse(JSON.stringify(building));
+
+  newBuilding.floors.forEach((floor, idx) => {
     // 1. Union all room polygons
     const validRooms = floor.rooms.filter(r => r.polygon && r.polygon.length >= 3);
     if (validRooms.length === 0) {
@@ -40,12 +43,14 @@ export function computeSlabGeometries(building: Building): Building {
       } else {
         unionPolys = [polys[0]];
       }
-    } catch (e) {
+    } catch {
       throw new GeometryValidationError(`Polygon union failed for floor ${floor.index}.`, floor.index);
     }
 
     // 2. Compute penetrating staircases
-    const allStaircases = building.floors.flatMap(f => f.staircases || []);
+    // Convention: Staircase cutouts are created on the destination floors (upper floors).
+    // The source floor (startFloorIndex) does NOT have a hole.
+    const allStaircases = newBuilding.floors.flatMap(f => f.staircases || []);
     const penetratingStaircases = allStaircases.filter(s => 
       (s.startFloorIndex !== undefined && s.startFloorIndex < idx && (s.endFloorIndex === undefined || s.endFloorIndex >= idx)) ||
       (s.startFloorIndex === undefined && idx > 0)
@@ -56,7 +61,28 @@ export function computeSlabGeometries(building: Building): Building {
       let stairPoly: [number, number][] = [];
       
       if (stair.footprint && stair.footprint.length >= 3) {
-        stairPoly = stair.footprint.map(p => [p[0], p[1]] as [number, number]);
+        // Validate custom footprint
+        const first = stair.footprint[0];
+        const last = stair.footprint[stair.footprint.length - 1];
+        let fp = stair.footprint;
+        if (first[0] !== last[0] || first[1] !== last[1]) {
+           fp = [...fp, first]; // close the polygon
+        }
+        
+        // Calculate area
+        let area = 0;
+        for (let i = 0; i < fp.length - 1; i++) {
+          area += fp[i][0] * fp[i + 1][1] - fp[i + 1][0] * fp[i][1];
+        }
+        if (Math.abs(area / 2) < 0.1) {
+          throw new GeometryValidationError(
+            `Staircase ${stair.id || 'unknown'} has invalid footprint area on floor ${floor.index}.`,
+            floor.index,
+            stair.id
+          );
+        }
+        
+        stairPoly = fp.map(p => [p[0], p[1]] as [number, number]);
       } else {
         const sx = stair.position[0];
         const sz = stair.position[1];
@@ -116,5 +142,5 @@ export function computeSlabGeometries(building: Building): Building {
     });
   });
 
-  return building;
+  return newBuilding;
 }

@@ -35,7 +35,7 @@
     "oxlint": "^1.81.0",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
-    "vitest": "^5.0.1"
+    "vitest": "^2.1.1"
   },
   "overrides": {
     "camera-controls": "2.9.0"

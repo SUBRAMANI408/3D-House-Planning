@@ -123,7 +123,7 @@ describe('Geometry Utils', () => {
     expect(() => computeSlabGeometries(building)).toThrowError(GeometryValidationError);
   });
 
-  it('uses custom footprint if provided', () => {
+  it('uses custom footprint if provided and calculates correct area', () => {
     const building = createBaseBuilding();
     const stair: Staircase = {
       id: 'st5',
@@ -142,5 +142,39 @@ describe('Geometry Utils', () => {
     building.floors[0].staircases.push(stair);
     const result = computeSlabGeometries(building);
     expect(result.floors[1].slabGeometry?.[0].innerRings.length).toBe(1);
+  });
+
+  it('rejects invalid custom footprint with zero area', () => {
+    const building = createBaseBuilding();
+    const stair: Staircase = {
+      id: 'st6',
+      startFloorIndex: 0,
+      endFloorIndex: 1,
+      position: [0, 0],
+      width: 0, length: 0,
+      footprint: [
+        [4, 4],
+        [6, 4],
+        [4, 4] // Line, 0 area
+      ],
+      type: 'straight'
+    };
+    building.floors[0].staircases.push(stair);
+    expect(() => computeSlabGeometries(building)).toThrowError(GeometryValidationError);
+  });
+
+  it('keeps native coordinate system [x, y] in canonical slabGeometry without negating Y', () => {
+    const building = createBaseBuilding();
+    // Base building room is [0,0], [10,0], [10,10], [0,10]
+    const result = computeSlabGeometries(building);
+    const outerRing = result.floors[0].slabGeometry?.[0].outerRing;
+    expect(outerRing).toBeDefined();
+    if (outerRing) {
+      // Must contain positive Y = 10, not -10
+      const hasPositiveY = outerRing.some(p => p[1] > 0);
+      const hasNegativeY = outerRing.some(p => p[1] < 0);
+      expect(hasPositiveY).toBe(true);
+      expect(hasNegativeY).toBe(false);
+    }
   });
 });

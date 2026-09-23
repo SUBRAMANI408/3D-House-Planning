@@ -58,7 +58,17 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
         }
 
         const norm = normalizeBuilding(res.data.building);
-        setGeneratedBuilding(norm);
+        
+        let validatedBuilding;
+        try {
+          validatedBuilding = computeSlabGeometries(norm);
+        } catch (e: any) {
+          setGenerating(false);
+          addToast({ type: 'error', message: `Geometry Compilation Failed: ${e.message}` });
+          return;
+        }
+
+        setGeneratedBuilding(validatedBuilding);
         setGenerating(false);
         setStep(4);
         addToast({ type: 'success', message: 'AI House generated and validated successfully!' });
@@ -73,13 +83,7 @@ export const AIHouseBuilderModal: React.FC<{ isOpen: boolean; onClose: () => voi
 
   const handleEditBuilding = () => {
     if (generatedBuilding) {
-      try {
-        const validatedBuilding = computeSlabGeometries(generatedBuilding);
-        setBuilding(validatedBuilding);
-      } catch (e: any) {
-        addToast({ type: 'error', message: `Geometry Compilation Failed: ${e.message}` });
-        return;
-      }
+      setBuilding(generatedBuilding);
       onClose();
       addToast({ type: 'info', message: 'Building loaded into 3D Editor. You can now edit all components!' });
     }
