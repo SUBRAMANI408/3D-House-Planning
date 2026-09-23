@@ -92,6 +92,7 @@ export interface Staircase {
   position: Vector2;
   width: number;
   length: number;
+  rotation?: number;
   footprint?: Vector2[];
   type: 'straight' | 'l-shaped' | 'u-shaped' | 'spiral';
   visible?: boolean;

@@ -204,6 +204,7 @@ class Staircase(BaseModel):
     position: Optional[list[float]] = None
     width: Optional[float] = 1.2
     length: Optional[float] = 2.6
+    rotation: Optional[float] = 0.0
     style: str = "straight"
     type: str = "straight"
 

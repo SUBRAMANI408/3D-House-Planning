@@ -292,11 +292,17 @@ export const BuildingRenderer: React.FC = () => {
 
   return (
     <group name="building-root">
-      {floorRenderData.map((floor) => {
+      {floorRenderData.map((floor, idx) => {
+        const allStaircases = building.floors.flatMap(f => f.staircases || []);
+        const penetratingStaircases = allStaircases.filter(s => 
+          (s.startFloorIndex !== undefined && s.startFloorIndex < idx && (s.endFloorIndex === undefined || s.endFloorIndex >= idx)) ||
+          (s.startFloorIndex === undefined && idx > 0)
+        );
+
         return (
           <group key={`floor-${floor.floorIdx}`} name={`floor-${floor.floorIdx}`} position={[0, floor.elevation, 0]}>
             {/* ── Floor Structural Base Slab ──────────────────────────────────── */}
-            <FloorSlabMesh rooms={floor.rooms} staircases={idx > 0 ? building.floors[idx - 1].staircases : []} />
+            <FloorSlabMesh rooms={floor.rooms} staircases={penetratingStaircases} />
 
             {/* ── Room Surfaces ──────────────────────────────────────────────── */}
             {floor.rooms.map((room) => (
