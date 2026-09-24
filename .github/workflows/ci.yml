@@ -69,9 +69,8 @@ jobs:
 
       - name: Run pytest
         run: pytest -q --tb=short
-
   # ──────────────────────────────────────────────────────────────────
-  # Job 3: Playwright E2E tests (browser-enabled)
+  # Job 3: Playwright E2E tests (browser-enabled, with DB + Redis)
   # ──────────────────────────────────────────────────────────────────
   e2e:
     name: E2E (Playwright)
@@ -80,6 +79,31 @@ jobs:
     defaults:
       run:
         working-directory: frontend
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: house3d
+          POSTGRES_PASSWORD: house3d_secret
+          POSTGRES_DB: house3d
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U house3d -d house3d"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
     steps:
       - uses: actions/checkout@v4
@@ -108,19 +132,37 @@ jobs:
         run: pip install -r ../backend/requirements.txt
 
       - name: Start backend server
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://house3d:house3d_secret@localhost:5432/house3d
+          REDIS_URL: redis://localhost:6379/0
+          CORS_ORIGINS: '["http://localhost:5173"]'
         run: |
-          cd ../backend
-          uvicorn app.main:app --host 127.0.0.1 --port 8000 &
-          # Wait for backend to become ready
+          uvicorn app.main:app \
+            --host 127.0.0.1 \
+            --port 8000 \
+            > /tmp/backend.log 2>&1 &
+
+      - name: Wait for backend readiness
+        run: |
           for i in $(seq 1 30); do
-            curl -sf http://127.0.0.1:8000/health && break
+            if curl -sf http://127.0.0.1:8000/health; then
+              echo ""
+              echo "Backend is ready."
+              exit 0
+            fi
             sleep 1
           done
+          echo "Backend failed to become ready within 30s."
+          echo "--- backend log ---"
+          cat /tmp/backend.log || true
+          exit 1
 
       - name: Run Playwright E2E tests
         run: npm run test:e2e
         env:
           CI: true
+          VITE_API_URL: http://127.0.0.1:8000
 
       - name: Upload Playwright report
         if: failure()
@@ -136,6 +178,14 @@ jobs:
         with:
           name: playwright-results
           path: frontend/test-results/
+          retention-days: 14
+
+      - name: Upload backend log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-log
+          path: /tmp/backend.log
           retention-days: 14
 
   # ──────────────────────────────────────────────────────────────────
