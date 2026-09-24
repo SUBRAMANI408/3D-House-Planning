@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 from app.schema.building import Building
 from app.validator.validator import validate_building
+from app.validator.structural import normalize_slab_geometry
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "seed_data" / "templates"
 
@@ -25,6 +26,7 @@ def test_template_roundtrip_and_validation(template_path: Path):
     assert len(reparsed_building.floors) == len(building.floors)
 
     # 4. Run validators
-    result = validate_building(building, normalize=True)
+    normalize_slab_geometry(building)
+    result = validate_building(building)
     # Ensure no severe structural/connectivity errors
     assert len(result.errors) == 0, f"Template {template_path.name} failed validation errors: {result.errors}"

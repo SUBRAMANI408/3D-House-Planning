@@ -5,13 +5,13 @@ from app.validator.collision import check_collisions
 from app.validator.structural import check_structural, normalize_slab_geometry
 from app.validator.room_sizing import check_room_sizing
 
-def validate_building(building: Building, normalize: bool = False) -> ValidationResult:
+def validate_building(building: Building) -> ValidationResult:
     """
     Validates building layout against architectural rules (connectivity, collision, structural, sizing).
     
     API Contract & Pipeline Sequence:
       1. Parsing: Input dict is validated against Pydantic Building model schema.
-      2. Normalization (optional): If normalize=True, populates missing canonical slab_geometry
+      2. Normalization (optional): Handled upstream. Populates missing canonical slab_geometry
          on floors while enforcing staircase footprint containment.
       3. Structural & Topological Validation: Enforces slab geometry matching, stair containment,
          and continuous load-bearing wall support.
@@ -19,12 +19,8 @@ def validate_building(building: Building, normalize: bool = False) -> Validation
       
     Args:
         building: Parsed Pydantic Building model instance.
-        normalize: If True, populates canonical slab_geometry before validation.
-                  If False, missing slabGeometry generates a MISSING_SLAB_GEOMETRY error.
     """
-    if normalize:
-        normalize_slab_geometry(building)
-        
+
     issues: list[ValidationError] = []
     issues += check_connectivity(building)
     issues += check_collisions(building)

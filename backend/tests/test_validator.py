@@ -152,7 +152,8 @@ def test_room_sizing_too_small():
     assert any("minimum" in w.message.lower() for w in warnings)
     
     # Full validate_building call should be valid (warnings only, no hard errors)
-    res = validate_building(house, normalize=True)
+    normalize_slab_geometry(house)
+    res = validate_building(house)
     assert res.is_valid is True
 
 def test_staircase_hole_semantics():

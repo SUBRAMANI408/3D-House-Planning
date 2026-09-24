@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.schema.building import Building, Floor, Room, Wall, Door, Window, Staircase, Roof, BuildingType, Entrance, RoomConnection, ConnectionVia
 from app.validator import validate_building
+from app.validator.structural import normalize_slab_geometry
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
@@ -464,7 +465,8 @@ async def generate_ai_building(req: AIGenerateRequest) -> AIGenerateResponse:
     # Validate generated model
     try:
         b_obj = Building.model_validate(raw_building)
-        val_res = validate_building(b_obj, normalize=True)
+        normalize_slab_geometry(b_obj)
+        val_res = validate_building(b_obj)
         issues = val_res.errors + val_res.warnings
         issues_dict = [iss.model_dump(by_alias=True) for iss in issues]
         has_errors = len(val_res.errors) > 0
@@ -495,7 +497,9 @@ async def validate_ai_building(building_data: dict[str, Any], normalize: bool = 
     """
     try:
         b_obj = Building.model_validate(building_data)
-        val_res = validate_building(b_obj, normalize=normalize)
+        if normalize:
+            normalize_slab_geometry(b_obj)
+        val_res = validate_building(b_obj)
         issues = val_res.errors + val_res.warnings
         issues_dict = [iss.model_dump(by_alias=True) for iss in issues]
         has_errors = len(val_res.errors) > 0

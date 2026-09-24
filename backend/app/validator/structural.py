@@ -266,7 +266,7 @@ def check_structural(building: Building) -> list[ValidationError]:
                             
                 submitted_slab = submitted_slab.difference(unary_union(submitted_inners))
                 
-            # Full topological comparison via symmetric difference
+            # 1. Topological comparison via symmetric difference
             sym_diff = submitted_slab.symmetric_difference(expected_slab)
             # Scale-aware tolerance formula: max(absolute_min, expected_area * relative_tolerance)
             abs_tolerance = 0.1  # 0.1 m² minimum precision tolerance
@@ -279,6 +279,37 @@ def check_structural(building: Building) -> list[ValidationError]:
                     severity=Severity.error,
                     message=(f'Floor {floor.floor_index} submitted slab topology mismatch. '
                              f'Symmetric difference area: {sym_diff.area:.2f} m² exceeds tolerance {tolerance:.2f} m².'),
+                    floor_index=floor.floor_index
+                ))
+                
+            # 2. Strict Hausdorff distance check (boundary similarity)
+            hausdorff = submitted_slab.hausdorff_distance(expected_slab)
+            if hausdorff > 0.15:
+                issues.append(ValidationError(
+                    code='INVALID_SLAB_GEOMETRY',
+                    severity=Severity.error,
+                    message=(f'Floor {floor.floor_index} submitted slab boundary deviates too much. '
+                             f'Hausdorff distance: {hausdorff:.2f} m exceeds 0.15 m tolerance.'),
+                    floor_index=floor.floor_index
+                ))
+                
+            # 3. Component & Hole Count Matching
+            def get_counts(geom):
+                if geom.is_empty:
+                    return 0, 0
+                components = geom.geoms if hasattr(geom, 'geoms') else [geom]
+                holes = sum(len(c.interiors) for c in components)
+                return len(components), holes
+
+            sub_comp, sub_holes = get_counts(submitted_slab)
+            exp_comp, exp_holes = get_counts(expected_slab)
+            if sub_comp != exp_comp or sub_holes != exp_holes:
+                issues.append(ValidationError(
+                    code='INVALID_SLAB_GEOMETRY',
+                    severity=Severity.error,
+                    message=(f'Floor {floor.floor_index} submitted slab component mismatch. '
+                             f'Expected {exp_comp} components with {exp_holes} holes, '
+                             f'got {sub_comp} components with {sub_holes} holes.'),
                     floor_index=floor.floor_index
                 ))
         else:
